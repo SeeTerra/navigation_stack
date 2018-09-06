@@ -1,0 +1,3 @@
+/home/nuc/catkin_ws/src/zayas_test/build/CMakeFiles/edit_cache.dir
+/home/nuc/catkin_ws/src/zayas_test/build/CMakeFiles/rebuild_cache.dir
+/home/nuc/catkin_ws/src/zayas_test/build/CMakeFiles/ArucoGen.dir

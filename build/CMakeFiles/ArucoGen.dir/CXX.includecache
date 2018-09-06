@@ -1,0 +1,14 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/nuc/catkin_ws/src/zayas_test/src/aruco_gen.cpp
+opencv2/aruco.hpp
+-
+iostream
+-
+
