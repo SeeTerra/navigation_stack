@@ -37,13 +37,19 @@ class ArucoDetector(object):
         self.initial_id = None
 
         # Grab camera info
-        ##TODO: Replace this w/ something that reads from a file if the msg is empty!
         try:
+            ros.logdebug("Checking for camera info...")
             camera_info_topic = ros.get_param('~camera_info_topic')
         except:
-            ros.logerr("Camera_info topic not set in launch file!")
-            exit()
-        # cam_info_sub = ros.Subscriber(camera_info_topic, CameraInfo, self.cbCamInfo)
+            ros.logerr("Camera_info topic not set in launch file! Searching for\
+             calibration file!")
+            try:
+                self.loadCalibration()
+            except:
+                ros.logerr("No calibration file found!")
+                exit()
+
+        ##DEBUG: Need to figure out camera_info_topic, below is placeholder
         self.loadCalibration()
 
         # Configure aruco detector
@@ -58,25 +64,28 @@ class ArucoDetector(object):
         self.rvecs = [0]
 
     def loadCalibration(self):
-        ''' Load the camera calibration file and read relevant values'''
-        with open('/home/nuc/catkin_ws/src/zayas_test/scripts/ost.yaml','r') as f:
-            doc = yaml.load(f)
 
+        ''' Load the camera calibration file and read relevant values'''
+        with open(
+        '/home/nuc/catkin_ws/src/zayas_test/scripts/ost.yaml','r') as f:
+            doc = yaml.load(f)
         self.matrix = np.asarray(doc["camera_matrix"]["data"])
         self.matrix = self.matrix.reshape(3,3)
         self.dist = np.asarray(doc["distortion_coefficients"]["data"])
         ros.loginfo(self.matrix)
         ros.loginfo(self.dist)
 
-    #TODO: Review
+    ##TODO: Double check how to work with camera_info_topic through ROS
     def cbCamInfo(self, msg):
         '''Retrieve cam info data from message'''
+
         self.matrix = msg.K
         self.dist = msg.D
         ros.loginfo(self.matrix)
 
     def extractImage(self, msg):
-        ''' Extracts the data from the msg and converts to usable numpy array '''
+        ''' Extracts data from msg and converts to usable numpy array'''
+
         try:
             image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
             img = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -86,22 +95,21 @@ class ArucoDetector(object):
 
     def detectMarkers(self, frame):
         ''' Detects markers based on default params. '''
-        ## TODO: Look into how the parameters are determined
-        aruco_params = aruco.DetectorParameters_create()
-        corners, ids, rejectedImgPoints = aruco.detectMarkers(frame, self.aruco_dict, parameters = aruco_params)
 
-        ##DEBUG:
-        #ros.logdebug(corners)
-        #ros.logdebug(ids)
+        aruco_params = aruco.DetectorParameters_create()
+        corners, ids, rejectedImgPoints = aruco.detectMarkers(
+            frame, self.aruco_dict, parameters = aruco_params)
 
         return corners, ids
 
     def obtainPose(self, corners, ids):
         ''' Retrieves pose from given markers and (for now) handles tf stuff.
         Runs once per frame received.'''
-        #TODO: Review, [x]possibly[x] DEFINITELY split tf and pose extraction
+
+        ##TODO: Split tf and pose extraction
         # This method is super gross right now and you should be embarassed.
-        rvecs, tvecs, _objPoints = aruco.estimatePoseSingleMarkers(corners, .185, self.matrix, self.dist)
+        rvecs, tvecs, _objPoints = aruco.estimatePoseSingleMarkers(
+            corners, .185, self.matrix, self.dist)
         self.rvecs = rvecs
         self.tvecs = tvecs
 
@@ -113,32 +121,14 @@ class ArucoDetector(object):
         # LOG OUR INITIAL ID
         if (self.initial_id == None):
             self.initial_id = ids[0][0]
-            self.id_db[self.initial_id] = [(0,0,0), tf.transformations.quaternion_from_euler(0,0,0)]
+            self.id_db[self.initial_id] = [
+                (0,0,0), tf.transformations.quaternion_from_euler(0,0,0)]
 
         # LOOP THROUGH ALL DETECTED IDS
         for i in range(len(ids)):
-            #TODO: Figure out how to get cv2.quaternion_from_matrix working
-            # ALSO note most of this functionality will exist as methods in the tag database node
+            ##TODO: Pretty much this entire loop should be handled by a db node
 
-
-            #if (ids[i][0]==self.initial_id):
-            #    # Rodrigues -> Euler
-            #    rvec = cv2.Rodrigues(rvecs[i][0])
-            #    rvec = self.rotationMatrixToEulerAngles(rvec[0])
-
-            #    # Split our dictionary entry into tvec and rvecs
-            #    w_tvec, w_rvec = self.id_db[self.initial_id]
-
-            #    # Anchor our initial id to the world frame, important for later frames TODO: Reorganize to keep width down
-            #    ros.logdebug(str(tvecs[i][0]) + str(tf.transformations.quaternion_from_euler(rvec[0],rvec[1],rvec[2])))
-            #    self.br.sendTransform(tvecs[i][0],tf.transformations.quaternion_from_euler(rvec[0],rvec[1],rvec[2]), ros.Time(), "/" + str(self.initial_id), "/camera")
-
-            # This loop will register the location so that it can be
-            # continuously updated but only if there's multiple tags to do it
-            # with
-            # TODO: Average gathered values, or see if tf does this
-
-##########################THIS PART SUCKS###########################################
+##########################THIS PART IS BAD######################################
 
             # UPDATE OUR CAMERA POSITION BASED ON TAGS
             ros.loginfo("RVECS BEFORE RODRIGUES: " + str(rvecs))
@@ -150,7 +140,9 @@ class ArucoDetector(object):
             rvec = M
             rvec = tf.transformations.quaternion_from_matrix(rvec)
             ros.loginfo("RVEC AFTER TF.TRANSFORMATIONS: " + str(rvec))
-            self.br.sendTransform(tvecs[i][0], rvec, ros.Time.now(), "/" + str(ids[i][0]), "/camera")
+            self.br.sendTransform(
+                tvecs[i][0], rvec, ros.Time.now(), "/" + str(ids[i][0]),
+                "/camera")
 
             # IF THE ID ISNT IN THE DATABASE AND WE HAVE ANOTHER TAG FOR REFERENCE... FIND THE TRANSFORM AND PUT IN DATABASE
             # TODO ONLY CONSIDER IF ONE OF THE OTHER TAGS ARE LOCALIZED!!!
@@ -167,22 +159,23 @@ class ArucoDetector(object):
 
 #################################################################################
 
-        # Broadcast all locations based on the database
         for key in self.id_db:
 
             # Split dict entry
             w_tvec, w_rvec = self.id_db[key]
 
-            # Broadcast
-            self.br.sendTransform(w_tvec, w_rvec, ros.Time.now(), "/" + str(key), "/world")
+            # Now Broadcast
+            self.br.sendTransform(
+            w_tvec, w_rvec, ros.Time.now(), "/" + str(key), "/world")
 
-
-        ros.loginfo("id_db: " + str(self.id_db))
-        print("===============")
+        ##DEBUG: Debug to print the database + world anchors
+        ros.logdebug("id_db: " + str(self.id_db))
+        ros.logdebug("========================================\n")
 
         return rvecs, tvecs
 
-    # THE FOLLOWING TWO FUNCTIONS ARE FROM https://www.learnopencv.com/rotation-matrix-to-euler-angles/
+###THE FOLLOWING TWO FUNCTIONS ARE FROM#########################################
+#https://www.learnopencv.com/rotation-matrix-to-euler-angles/###################
 
     # Checks if a matrix is a valid rotation matrix.
     def isRotationMatrix(self, R) :
@@ -194,8 +187,6 @@ class ArucoDetector(object):
 
 
     # Calculates rotation matrix to euler angles
-    # The result is the same as MATLAB except the order
-    # of the euler angles ( x and z are swapped ).
     def rotationMatrixToEulerAngles(self, R) :
 
         assert(self.isRotationMatrix(R))
@@ -215,31 +206,39 @@ class ArucoDetector(object):
 
         return np.array([x, y, z])
 
+################################################################################
+
     def drawMarkers(self, corners, frame):
         ''' Draws the detected markers on the frame. '''
         debugFrame = aruco.drawDetectedMarkers(frame, corners)
+
+        #DEBUG: Draw axes. This is currently very shaky and inaccurate.. :(..
         #if (True):
         #    ros.loginfo("rvecs: " + str(self.rvecs))
-        #    debugFrame = aruco.drawAxis(debugFrame, self.matrix, self.dist, self.rvecs[0], self.tvecs[0], 100)
+        #    debugFrame = aruco.drawAxis(
+        #    debugFrame, self.matrix, self.dist, self.rvecs[0],
+        #     self.tvecs[0], 100)
+
         cv2.imshow('DEBUG', debugFrame)
 
     def cbDetect(self, msg):
         ''' The main callback loop, run whenever a frame is received. '''
+
         frame = self.extractImage(msg)
 
         corners, ids = self.detectMarkers(frame)
-        if (len(corners)!=0):
+
+        if (len(corners)!=0): # If we detect corners...
             rvecs, tvecs = self.obtainPose(corners, ids)
             self.drawMarkers(corners,frame)
 
-        ## DEBUG:
-        else:
-            self.drawMarkers(corners, frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
-            ros.logfatal("oh no")
+            ros.logfatal("Quitting...")
 
 
 
 if __name__ == '__main__':
+    ros.logdebug("Creating Aruco Detector node...")
     ad = ArucoDetector()
+    ros.logdebug("Aruco Detector initialized. Now spinning.")
     ros.spin()
