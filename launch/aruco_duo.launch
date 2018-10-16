@@ -1,0 +1,15 @@
+<launch>
+    <node name="aruco_detector" pkg="zayas_test" type="aruco_detect.py" output="screen">
+      <param name="image_topic" type='str' value="/duo3d/rgb/image_rect"/>
+    </node>
+
+     <node name="duo3d" pkg="duo3d_driver" type="duo3d_driver" output="screen">
+		<param name="frame_rate" value="60.0"/>
+		<rosparam param="image_size">[320, 240]</rosparam>
+		<param name="dense3d_license" value="OVMZU-ZHFE2-9K41K-NQL44-WX3DV"/>
+		<param name="auto_exposure" value="true"/>
+		<param name="vertical_flip" value="true"/>
+		<param name="led" value="40"/>
+    </node>
+
+</launch>
