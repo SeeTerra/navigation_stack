@@ -106,7 +106,7 @@ class ArucoDetector(object):
         ''' Retrieves pose from given markers and (for now) handles tf stuff.
         Runs once per frame received.'''
 
-        ##TODO: Split tf and pose extraction
+        ##TODO: Split tf and aruco pose extraction
         # This method is super gross right now and you should be embarassed.
         rvecs, tvecs, _objPoints = aruco.estimatePoseSingleMarkers(
             corners, .185, self.matrix, self.dist)
@@ -118,7 +118,7 @@ class ArucoDetector(object):
          we can define the exact position of an aruco tag and map estimations
          of the rest and possibly correct for it.'''
 
-        # LOG OUR INITIAL ID
+        # LOG OUR INITIAL ID IF NOT DONE YET
         if (self.initial_id == None):
             self.initial_id = ids[0][0]
             self.id_db[self.initial_id] = [
@@ -128,7 +128,7 @@ class ArucoDetector(object):
         for i in range(len(ids)):
             ##TODO: Pretty much this entire loop should be handled by a db node
 
-##########################THIS PART IS BAD######################################
+##########################EXPERIMENTAL PART#####################################
 
             # UPDATE OUR CAMERA POSITION BASED ON TAGS
             ros.loginfo("RVECS BEFORE RODRIGUES: " + str(rvecs))
@@ -141,8 +141,15 @@ class ArucoDetector(object):
             rvec = tf.transformations.quaternion_from_matrix(rvec)
             ros.loginfo("RVEC AFTER TF.TRANSFORMATIONS: " + str(rvec))
             self.br.sendTransform(
-                tvecs[i][0], rvec, ros.Time.now(), "/" + str(ids[i][0]),
-                "/camera")
+                tvecs[i][0], rvec, ros.Time.now(), "temp/" + str(ids[i][0]),
+                "temp/camera")
+
+            self.ls.waitForTransform("temp/" + str(ids[i][0]), "temp/camera", ros.Time.now(), ros.Duration(1.0))
+
+            trans, rot = self.ls.lookupTransform("temp/camera", "temp/" + str(ids[i][0]))
+
+            self.br.sendTransform(trans, rot, ros.Time.now(), "temp/camera", "/" + str(ids[i][0]))
+
 
             # IF THE ID ISNT IN THE DATABASE AND WE HAVE ANOTHER TAG FOR REFERENCE... FIND THE TRANSFORM AND PUT IN DATABASE
             # TODO ONLY CONSIDER IF ONE OF THE OTHER TAGS ARE LOCALIZED!!!
