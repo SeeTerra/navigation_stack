@@ -63,6 +63,9 @@ class ArucoDetector(object):
         self.tvecs = [0]
         self.rvecs = [0]
 
+        # Are we tracking?
+        self.tracking = False
+
     def loadCalibration(self):
 
         ''' Load the camera calibration file and read relevant values'''
@@ -128,8 +131,6 @@ class ArucoDetector(object):
         for i in range(len(ids)):
             ##TODO: Pretty much this entire loop should be handled by a db node
 
-##########################EXPERIMENTAL PART#####################################
-
             # UPDATE OUR CAMERA POSITION BASED ON TAGS
             ros.loginfo("RVECS BEFORE RODRIGUES: " + str(rvecs))
             rvec = cv2.Rodrigues(rvecs[i])
@@ -144,27 +145,33 @@ class ArucoDetector(object):
                 tvecs[i][0], rvec, ros.Time.now(), "temp/" + str(ids[i][0]),
                 "temp/camera")
 
-            self.ls.waitForTransform("temp/" + str(ids[i][0]), "temp/camera", ros.Time.now(), ros.Duration(1.0))
+            #self.ls.waitForTransform("temp/" + str(ids[i][0]), "temp/camera", ros.Time.now(), ros.Duration(1.0))
 
-            trans, rot = self.ls.lookupTransform("temp/camera", "temp/" + str(ids[i][0]))
+            trans, rot = self.ls.lookupTransform("temp/" + str(ids[i][0]), "temp/camera",ros.Time())
 
-            self.br.sendTransform(trans, rot, ros.Time.now(), "temp/camera", "/" + str(ids[i][0]))
+            self.br.sendTransform(trans, rot, ros.Time.now(), "/camera", "/" + str(ids[i][0]))
+            self.tracking = True
 
+##########################EXPERIMENTAL PART#####################################
 
-            # IF THE ID ISNT IN THE DATABASE AND WE HAVE ANOTHER TAG FOR REFERENCE... FIND THE TRANSFORM AND PUT IN DATABASE
+            # IF THE ID ISNT IN THE DATABASE AND WE HAVE ANOTHER TAG FOR
+            # REFERENCE... FIND THE TRANSFORM AND PUT IN DATABASE
             # TODO ONLY CONSIDER IF ONE OF THE OTHER TAGS ARE LOCALIZED!!!
-            if ((ids[i][0] not in self.id_db) and len(ids) > 1):
+            if ((ids[i][0] not in self.id_db) and (self.tracking == True)):
                 # Rodrigues -> Euler
                 rvec = cv2.Rodrigues(rvecs[i][0])
                 rvec = self.rotationMatrixToEulerAngles(rvec[0])
 
-                self.br.sendTransform(tvecs[i][0],tf.transformations.quaternion_from_euler(rvec[0],rvec[1],rvec[2]), ros.Time.now(), "/" + str(ids[i][0]), "/camera")
-                trans, rot = self.ls.lookupTransform('/' + str(ids[i][0]), '/world', ros.Time())
+                self.br.sendTransform(
+                    tvecs[i][0],
+                    tf.transformations.quaternion_from_euler(rvec[0],rvec[1],rvec[2]),
+                    ros.Time.now(), "temp2/" + str(ids[i][0]), "temp2/camera")
+                trans, rot = self.ls.lookupTransform('temp2/' + str(ids[i][0]), '/world', ros.Time())
                 ros.logdebug(trans)
                 ros.logdebug(rot)
                 self.id_db[ids[i][0]] = [trans, rot]
 
-#################################################################################
+################################################################################
 
         for key in self.id_db:
 
@@ -179,6 +186,8 @@ class ArucoDetector(object):
         ros.logdebug("id_db: " + str(self.id_db))
         ros.logdebug("========================================\n")
 
+        ros.loginfo("Tracking?: " + str(self.tracking))
+        self.tracking = False
         return rvecs, tvecs
 
 ###THE FOLLOWING TWO FUNCTIONS ARE FROM#########################################
@@ -239,6 +248,8 @@ class ArucoDetector(object):
             rvecs, tvecs = self.obtainPose(corners, ids)
             self.drawMarkers(corners,frame)
 
+        else:
+            self.drawMarkers(corners, frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             ros.logfatal("Quitting...")
 
