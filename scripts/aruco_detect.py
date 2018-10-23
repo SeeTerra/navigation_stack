@@ -162,11 +162,9 @@ class ArucoDetector(object):
                 rvec = cv2.Rodrigues(rvecs[i][0])
                 rvec = self.rotationMatrixToEulerAngles(rvec[0])
 
-                self.br.sendTransform(
-                    tvecs[i][0],
-                    tf.transformations.quaternion_from_euler(rvec[0],rvec[1],rvec[2]),
-                    ros.Time.now(), "temp2/" + str(ids[i][0]), "temp2/camera")
-                trans, rot = self.ls.lookupTransform('temp2/' + str(ids[i][0]), '/world', ros.Time())
+                trans, rot = self.ls.lookupTransform('temp2/camera', 'temp2/' + str(ids[i][0]), ros.Time())
+                self.br.sendTransform(trans, rot, ros.Time.now(), "temp3/" + str(ids[i][0]), "/camera")
+                trans, rot = self.ls.lookupTransform("temp3/" + str(ids[i][0]), "/world", ros.Time())
                 ros.logdebug(trans)
                 ros.logdebug(rot)
                 self.id_db[ids[i][0]] = [trans, rot]
