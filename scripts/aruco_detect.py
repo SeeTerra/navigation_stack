@@ -127,6 +127,15 @@ class ArucoDetector(object):
             self.id_db[self.initial_id] = [
                 (0,0,0), tf.transformations.quaternion_from_euler(0,0,0)]
 
+        for key in self.id_db:
+
+            # Split dict entry
+            w_tvec, w_rvec = self.id_db[key]
+
+            # Now Broadcast
+            self.br.sendTransform(
+            w_tvec, w_rvec, ros.Time.now(), "/" + str(key), "/world")
+
         # LOOP THROUGH ALL DETECTED IDS
         for i in range(len(ids)):
             ##TODO: Pretty much this entire loop should be handled by a db node
@@ -149,8 +158,9 @@ class ArucoDetector(object):
 
             trans, rot = self.ls.lookupTransform("temp/" + str(ids[i][0]), "temp/camera",ros.Time())
 
-            self.br.sendTransform(trans, rot, ros.Time.now(), "/camera", "/" + str(ids[i][0]))
-            self.tracking = True
+            if (ids[i][0] in self.id_db):
+                self.br.sendTransform(trans, rot, ros.Time.now(), "/camera", "/" + str(ids[i][0]))
+                self.tracking = True
 
 ##########################EXPERIMENTAL PART#####################################
 
@@ -158,27 +168,22 @@ class ArucoDetector(object):
             # REFERENCE... FIND THE TRANSFORM AND PUT IN DATABASE
             # TODO ONLY CONSIDER IF ONE OF THE OTHER TAGS ARE LOCALIZED!!!
             if ((ids[i][0] not in self.id_db) and (self.tracking == True)):
+                # TODO: CREATE A FUNCTION FOR THIS
                 # Rodrigues -> Euler
-                rvec = cv2.Rodrigues(rvecs[i][0])
-                rvec = self.rotationMatrixToEulerAngles(rvec[0])
+                rvec = cv2.Rodrigues(rvecs[i])
+                M = np.identity(4)
+                M[:3, :3] = rvec[0]
+                rvec = M
+                rvec = tf.transformations.quaternion_from_matrix(rvec)
 
-                trans, rot = self.ls.lookupTransform('temp2/camera', 'temp2/' + str(ids[i][0]), ros.Time())
-                self.br.sendTransform(trans, rot, ros.Time.now(), "temp3/" + str(ids[i][0]), "/camera")
-                trans, rot = self.ls.lookupTransform("temp3/" + str(ids[i][0]), "/world", ros.Time())
-                ros.logdebug(trans)
-                ros.logdebug(rot)
-                self.id_db[ids[i][0]] = [trans, rot]
+                self.br.sendTransform(tvecs[i][0], rvec, ros.Time.now(), "temp2/" + str(ids[i][0]), "/camera")
+                add_trans, add_rot = self.ls.lookupTransform("temp2/" + str(ids[i][0]), "/world", ros.Time())
+                ros.logdebug(add_trans)
+                ros.logdebug(add_rot)
+                ros.logdebug("INITIAL ID: " + str(self.initial_id))
+                self.id_db[ids[i][0]] = [add_trans, add_rot]
 
 ################################################################################
-
-        for key in self.id_db:
-
-            # Split dict entry
-            w_tvec, w_rvec = self.id_db[key]
-
-            # Now Broadcast
-            self.br.sendTransform(
-            w_tvec, w_rvec, ros.Time.now(), "/" + str(key), "/world")
 
         ##DEBUG: Debug to print the database + world anchors
         ros.logdebug("id_db: " + str(self.id_db))
