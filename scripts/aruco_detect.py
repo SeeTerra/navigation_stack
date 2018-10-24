@@ -66,6 +66,9 @@ class ArucoDetector(object):
         # Are we tracking?
         self.tracking = False
 
+        # For loop in obtainPose
+        self.loop = 0
+
     def loadCalibration(self):
 
         ''' Load the camera calibration file and read relevant values'''
@@ -182,6 +185,9 @@ class ArucoDetector(object):
                 ros.logdebug(add_rot)
                 ros.logdebug("INITIAL ID: " + str(self.initial_id))
                 self.id_db[ids[i][0]] = [add_trans, add_rot]
+
+                #LOOP FOR CORRECTED POSITION, THIS ONLY WORKS IF ONE NEW TAG
+                # IS INTRODUCED AT A TIME!
 
 ################################################################################
 
