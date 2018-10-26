@@ -68,6 +68,8 @@ class ArucoDetector(object):
 
         # For loop in obtainPose
         self.loop = 0
+        self.tmp_trans = []
+        self.tmp_rots = []
 
     def loadCalibration(self):
 
@@ -144,15 +146,12 @@ class ArucoDetector(object):
             ##TODO: Pretty much this entire loop should be handled by a db node
 
             # UPDATE OUR CAMERA POSITION BASED ON TAGS
-            ros.loginfo("RVECS BEFORE RODRIGUES: " + str(rvecs))
             rvec = cv2.Rodrigues(rvecs[i])
-            ros.loginfo("RVEC AFTER RODRIGUES: " + str(rvec))
             #rvec = self.rotationMatrixToEulerAngles(rvec[0])
             M = np.identity(4)
             M[:3, :3] = rvec[0]
             rvec = M
             rvec = tf.transformations.quaternion_from_matrix(rvec)
-            ros.loginfo("RVEC AFTER TF.TRANSFORMATIONS: " + str(rvec))
             self.br.sendTransform(
                 tvecs[i][0], rvec, ros.Time.now(), "temp/" + str(ids[i][0]),
                 "temp/camera")
@@ -181,13 +180,33 @@ class ArucoDetector(object):
 
                 self.br.sendTransform(tvecs[i][0], rvec, ros.Time.now(), "temp2/" + str(ids[i][0]), "/camera")
                 add_trans, add_rot = self.ls.lookupTransform("temp2/" + str(ids[i][0]), "/world", ros.Time())
-                ros.logdebug(add_trans)
-                ros.logdebug(add_rot)
-                ros.logdebug("INITIAL ID: " + str(self.initial_id))
-                self.id_db[ids[i][0]] = [add_trans, add_rot]
+
+                if (self.loop < 10):
+                    ros.loginfo("LOOP #: " + str(self.loop))
+                    self.tmp_trans.append(add_trans)
+                    self.tmp_rots.append(add_rot)
+                    self.loop = self.loop+1
+                else:
+                    ros.loginfo("len(tmp_trans)" + str(len(self.tmp_trans)))
+                    ros.loginfo("len(tmp_rots)" + str(len(self.tmp_rots)))
+                    ros.loginfo("tmp_trans" + str(self.tmp_trans))
+                    ros.loginfo("tmp_rots" + str(self.tmp_rots))
+                    self.tmp_trans = np.array(self.tmp_trans)
+                    self.tmp_rots = np.array(self.tmp_rots)
+                    add_trans = np.array(self.tmp_trans.mean(axis=0))
+                    add_rot = np.array(self.tmp_rots.mean(axis=0))
+                    self.loop = 0
+                    self.tmp_trans = []
+                    self.tmp_rots = []
+
+                    ros.loginfo("add_trans: " + str(add_trans))
+                    ros.loginfo("add_rots: " + str(add_rot))
+
+                    self.id_db[ids[i][0]] = [add_trans, add_rot]
 
                 #LOOP FOR CORRECTED POSITION, THIS ONLY WORKS IF ONE NEW TAG
                 # IS INTRODUCED AT A TIME!
+
 
 ################################################################################
 
