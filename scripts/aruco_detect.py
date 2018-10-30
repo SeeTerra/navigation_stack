@@ -55,6 +55,11 @@ class ArucoDetector(object):
         # Configure aruco detector
         self.aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
         self.aruco_params = aruco.DetectorParameters_create()
+        ros.logdebug(self.aruco_params.adaptiveThreshWinSizeMin)
+        ros.logdebug(self.aruco_params.adaptiveThreshWinSizeMax)
+        self.aruco_params.adaptiveThreshWinSizeMin = 20
+        self.aruco_params.adaptiveThreshWinSizeMax = 30
+        self.aruco_params.cornerRefinementMethod = 1
 
         # Initialize database of id and world coordinates
         self.id_db = dict()
@@ -132,6 +137,7 @@ class ArucoDetector(object):
             self.id_db[self.initial_id] = [
                 (0,0,0), tf.transformations.quaternion_from_euler(0,0,0)]
 
+        # BROADCAST OUR DATABASE/STATIC FRAMES
         for key in self.id_db:
 
             # Split dict entry
@@ -147,7 +153,6 @@ class ArucoDetector(object):
 
             # UPDATE OUR CAMERA POSITION BASED ON TAGS
             rvec = cv2.Rodrigues(rvecs[i])
-            #rvec = self.rotationMatrixToEulerAngles(rvec[0])
             M = np.identity(4)
             M[:3, :3] = rvec[0]
             rvec = M
@@ -156,9 +161,7 @@ class ArucoDetector(object):
                 tvecs[i][0], rvec, ros.Time.now(), "temp/" + str(ids[i][0]),
                 "temp/camera")
 
-            #self.ls.waitForTransform("temp/" + str(ids[i][0]), "temp/camera", ros.Time.now(), ros.Duration(1.0))
-
-            trans, rot = self.ls.lookupTransform("temp/" + str(ids[i][0]), "temp/camera",ros.Time())
+            trans, rot = self.ls.lookupTransform("temp/camera", "temp/" + str(ids[i][0]),ros.Time())
 
             if (ids[i][0] in self.id_db):
                 self.br.sendTransform(trans, rot, ros.Time.now(), "/camera", "/" + str(ids[i][0]))
@@ -179,7 +182,7 @@ class ArucoDetector(object):
                 rvec = tf.transformations.quaternion_from_matrix(rvec)
 
                 self.br.sendTransform(tvecs[i][0], rvec, ros.Time.now(), "temp2/" + str(ids[i][0]), "/camera")
-                add_trans, add_rot = self.ls.lookupTransform("temp2/" + str(ids[i][0]), "/world", ros.Time())
+                add_trans, add_rot = self.ls.lookupTransform("/world", "temp2/" + str(ids[i][0]), ros.Time())
 
                 if (self.loop < 10):
                     ros.loginfo("LOOP #: " + str(self.loop))
@@ -257,8 +260,7 @@ class ArucoDetector(object):
         debugFrame = aruco.drawDetectedMarkers(frame, corners)
 
         #DEBUG: Draw axes. This is currently very shaky and inaccurate.. :(..
-        #if (True):
-        #    ros.loginfo("rvecs: " + str(self.rvecs))
+        #if (self.rvecs.all() != None):
         #    debugFrame = aruco.drawAxis(
         #    debugFrame, self.matrix, self.dist, self.rvecs[0],
         #     self.tvecs[0], 100)
