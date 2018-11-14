@@ -53,12 +53,12 @@ class ArucoDetector(object):
         self.loadCalibration()
 
         # Configure aruco detector
-        self.aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
+        self.aruco_dict = aruco.Dictionary_get(aruco.DICT_ARUCO_ORIGINAL)
         self.aruco_params = aruco.DetectorParameters_create()
         ros.logdebug(self.aruco_params.adaptiveThreshWinSizeMin)
         ros.logdebug(self.aruco_params.adaptiveThreshWinSizeMax)
-        self.aruco_params.adaptiveThreshWinSizeMin = 20
-        self.aruco_params.adaptiveThreshWinSizeMax = 30
+        #self.aruco_params.adaptiveThreshWinSizeMin = 20
+        #self.aruco_params.adaptiveThreshWinSizeMax = 30
         self.aruco_params.cornerRefinementMethod = 1
 
         # Initialize database of id and world coordinates
@@ -122,7 +122,7 @@ class ArucoDetector(object):
         ##TODO: Split tf and aruco pose extraction
         # This method is super gross right now and you should be embarassed.
         rvecs, tvecs, _objPoints = aruco.estimatePoseSingleMarkers(
-            corners, .185, self.matrix, self.dist)
+            corners, .1, self.matrix, self.dist)
         self.rvecs = rvecs
         self.tvecs = tvecs
 
@@ -147,21 +147,30 @@ class ArucoDetector(object):
             self.br.sendTransform(
             w_tvec, w_rvec, ros.Time.now(), "/" + str(key), "/world")
 
+
+
         # LOOP THROUGH ALL DETECTED IDS
         for i in range(len(ids)):
             ##TODO: Pretty much this entire loop should be handled by a db node
 
             # UPDATE OUR CAMERA POSITION BASED ON TAGS
+            ros.loginfo("RAW RVECS:" + str(rvecs))
+            t_rvec = tf.transformations.quaternion_from_euler(rvecs[i][0][0],rvecs[i][0][1], rvecs[i][0][2], 'rzyx')
             rvec = cv2.Rodrigues(rvecs[i])
             M = np.identity(4)
             M[:3, :3] = rvec[0]
             rvec = M
             rvec = tf.transformations.quaternion_from_matrix(rvec)
+            ros.loginfo("COMPARE: " + str(t_rvec) + "||" + str(rvec))
             self.br.sendTransform(
-                tvecs[i][0], rvec, ros.Time.now(), "temp/" + str(ids[i][0]),
+                tvecs[i][0], t_rvec, ros.Time.now(), "temp/" + str(ids[i][0]),
                 "temp/camera")
 
-            trans, rot = self.ls.lookupTransform("temp/camera", "temp/" + str(ids[i][0]),ros.Time())
+            trans, rot = self.ls.lookupTransform("temp/" + str(ids[i][0]), "temp/camera",ros.Time())
+
+            ros.loginfo(tvecs[i][0])
+            ros.loginfo(trans)
+            ros.loginfo("NORM[TVEC(" + str(ids[i][0]) + ")]: " + str(np.linalg.norm(tvecs[i][0])))
 
             if (ids[i][0] in self.id_db):
                 self.br.sendTransform(trans, rot, ros.Time.now(), "/camera", "/" + str(ids[i][0]))
@@ -175,13 +184,14 @@ class ArucoDetector(object):
             if ((ids[i][0] not in self.id_db) and (self.tracking == True)):
                 # TODO: CREATE A FUNCTION FOR THIS
                 # Rodrigues -> Euler
+                t_rvec = tf.transformations.quaternion_from_euler(rvecs[i][0][0],rvecs[i][0][1], rvecs[i][0][2], 'rzyx')
                 rvec = cv2.Rodrigues(rvecs[i])
                 M = np.identity(4)
                 M[:3, :3] = rvec[0]
                 rvec = M
                 rvec = tf.transformations.quaternion_from_matrix(rvec)
 
-                self.br.sendTransform(tvecs[i][0], rvec, ros.Time.now(), "temp2/" + str(ids[i][0]), "/camera")
+                self.br.sendTransform(tvecs[i][0], t_rvec, ros.Time.now(), "temp2/" + str(ids[i][0]), "/camera")
                 add_trans, add_rot = self.ls.lookupTransform("/world", "temp2/" + str(ids[i][0]), ros.Time())
 
                 if (self.loop < 10):
@@ -254,6 +264,11 @@ class ArucoDetector(object):
         return np.array([x, y, z])
 
 ################################################################################
+
+    def rotationVectorToQuaternion(self, rvec):
+        ''' Custom method to convert the rvecs to quaternions '''
+
+        print("TEST.")
 
     def drawMarkers(self, corners, frame):
         ''' Draws the detected markers on the frame. '''
