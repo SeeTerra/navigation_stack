@@ -25,10 +25,10 @@ class ArucoDetector(object):
 
         # Legacy Mode? (ROS Message = Image msg)
         try:
-            legacy_mode = ros.get_param('~legacy_mode')
+            self.legacy_mode = ros.get_param('~legacy_mode')
         except:
             ros.logerr("Warning, legacy param not provided. Assuming Legacy Mode")
-            legacy_mode = True
+            self.legacy_mode = True
 
         # Initialize ROS Subscriber
         try:
@@ -293,7 +293,7 @@ class ArucoDetector(object):
     def cbDetect(self, msg):
         ''' The main callback loop, run whenever a frame is received. '''
 
-        if (legacy_mode):
+        if (self.legacy_mode):
             frame = self.extractImage(msg)
         else:
             frame = self.extractImage(msg.image)
