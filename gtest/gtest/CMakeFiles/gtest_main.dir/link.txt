@@ -1,0 +1,1 @@
+/usr/bin/c++  -fPIC   -shared -Wl,-soname,libgtest_main.so -o libgtest_main.so CMakeFiles/gtest_main.dir/src/gtest_main.cc.o  -L/home/nuc/catkin_ws/src/zayas_test/gtest/gtest/src -lpthread libgtest.so -lpthread -Wl,-rpath,/home/nuc/catkin_ws/src/zayas_test/gtest/gtest/src:/home/nuc/catkin_ws/src/zayas_test/gtest/gtest 

@@ -4,6 +4,7 @@ import numpy as np
 import rospy as ros
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import CameraInfo
+from wfov_camera_msgs.msg import WFOVImage
 import cv2
 import cv2.aruco as aruco
 from cv_bridge import CvBridge, CvBridgeError
@@ -22,6 +23,13 @@ class ArucoDetector(object):
         self.bridge = CvBridge()
         self.rate = ros.Rate(90) # in hz
 
+        # Legacy Mode? (ROS Message = Image msg)
+        try:
+            legacy_mode = ros.get_param('~legacy_mode')
+        except:
+            ros.logerr("Warning, legacy param not provided. Assuming Legacy Mode")
+            legacy_mode = True
+
         # Initialize ROS Subscriber
         try:
             image_topic = ros.get_param('~image_topic')
@@ -29,7 +37,7 @@ class ArucoDetector(object):
             ros.logerr("Image topic not set in launch file!")
             exit()
         ros.logdebug("Image topic loaded..")
-        self.sub = ros.Subscriber(image_topic, Image, self.cbDetect)
+        self.sub = ros.Subscriber(image_topic, WFOVImage, self.cbDetect)
 
         # Initialize tf broadcaster/listener and first tag check
         self.br = tf.TransformBroadcaster()
@@ -285,7 +293,10 @@ class ArucoDetector(object):
     def cbDetect(self, msg):
         ''' The main callback loop, run whenever a frame is received. '''
 
-        frame = self.extractImage(msg)
+        if (legacy_mode):
+            frame = self.extractImage(msg)
+        else:
+            frame = self.extractImage(msg.image)
 
         corners, ids = self.detectMarkers(frame)
 
