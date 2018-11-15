@@ -1,8 +1,0 @@
-prefix=/usr/local
-
-Name: zayas_test
-Description: Description of zayas_test
-Version: 0.0.2
-Cflags: 
-Libs: -L/usr/local/lib 
-Requires: joy roscpp rospy std_msgs message_runtime wfov_camera_msgs

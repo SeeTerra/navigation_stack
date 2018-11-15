@@ -1,8 +1,0 @@
-prefix=/home/nuc/catkin_ws/src/zayas_test/devel
-
-Name: zayas_test
-Description: Description of zayas_test
-Version: 0.0.2
-Cflags: 
-Libs: -L/home/nuc/catkin_ws/src/zayas_test/devel/lib 
-Requires: joy roscpp rospy std_msgs message_runtime wfov_camera_msgs
