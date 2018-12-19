@@ -9,6 +9,7 @@ from sensor_msgs.msg import Image
 from sensor_msgs.msg import CameraInfo
 from fiducial_msgs.msg import *
 from wfov_camera_msgs.msg import WFOVImage
+from tf import transformations as t
 
 class Slam:
 
@@ -33,9 +34,20 @@ class Slam:
 
         for i in msg.transforms:
             t, r = self.arrayify(i.transform)
-            self.br.sendTransform(
-                t, r, ros.Time.now(), "/" + str(i.fiducial_id), "/world")
-            test = self.addTransforms(self.id_db[i.fiducial_id], i.transform)
+            if i.fiducial_id in self.id_db: #UPDATE POSITION
+                #ros.logdebug("FIDUCIAL FOUND")
+                t1,r1 = self.inverseTransform(t,r)
+                t1 = Vector3(t[0],t[1],t[2])
+                r1 = Quaternion(r[0],r[1],r[2],r[3])
+                self.position = self.addTransforms(self.id_db[i.fiducial_id], Transform(t1,r1))
+                ros.logdebug(self.position)
+                #t1, r1 = self.arrayify(self.position)
+                #self.br.sendTransform(t1,r1,ros.Time.now(), "/camera", "/world")
+            else: #UPDATE DATABASE
+                print()
+                self.id_db[i.fiducial_id] = self.addTransforms(self.position,i.transform)
+            #t2,r2 = self.arrayify(self.id_db[i.fiducial_id])
+            #self.br.sendTransform(t2,r2,ros.Time.now(), "/world", "/tags/" + str(i.fiducial_id))
 
     def startDatabase(self, id):
         ''' Populate database with initial tag '''
@@ -73,25 +85,21 @@ class Slam:
 
         return w, x, y, z
 
-    def q_inv(self, q):
-        ''' Adapted from
-        https://stackoverflow.com/questions/4870393/rotating-coordinate-system-via-a-quaternion '''
+    def inverseTransform(self, trans, rot):
 
-        w1, x1, y1, z1 = q
+        transform = t.concatenate_matrices(t.translation_matrix(trans), t.quaternion_matrix(rot))
+        inversed_transform = t.inverse_matrix(transform)
 
-        r = w1^2 + x1^2 + y1^2 + z1^2
-        w = w1/r
-        x = x1/r
-        y = y1/r
-        z = z1/r
+        trans = t.translation_from_matrix(inversed_transform)
+        quat = t.quaternion_from_matrix(inversed_transform)
 
-        return w, x, y, z
+        return trans, quat
 
     def arrayify(self, n):
         ''' Turn the transform into two nparrays, translation and rotation '''
 
         trans = np.array([n.translation.x, n.translation.y, n.translation.z])
-        rot = np.array([n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w])
+        rot = np.array([ n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w])
 
         return trans, rot
 
