@@ -37,7 +37,10 @@ class ArucoDetector(object):
             ros.logerr("Image topic not set in launch file!")
             exit()
         ros.logdebug("Image topic loaded..")
-        self.sub = ros.Subscriber(image_topic, WFOVImage, self.cbDetect)
+        if(self.legacy_mode):
+            self.sub = ros.Subscriber(image_topic, Image, self.cbDetect)
+        else:
+            self.sub = ros.Subscriber(image_topic, WFOVImage, self.cbDetect)
 
         # Initialize tf broadcaster/listener and first tag check
         self.br = tf.TransformBroadcaster()
@@ -110,6 +113,7 @@ class ArucoDetector(object):
         try:
             image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
             img = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            img = cv2.resize(img, (300,300)) #TODO: Make size determined by launch
         except CvBridgeError as e:
             print(e)
         return img
@@ -161,6 +165,7 @@ class ArucoDetector(object):
         for i in range(len(ids)):
             ##TODO: Pretty much this entire loop should be handled by a db node
 
+            ##TODO: Remove t_rvec, it was a mistake.
             # UPDATE OUR CAMERA POSITION BASED ON TAGS
             ros.loginfo("RAW RVECS:" + str(rvecs))
             t_rvec = tf.transformations.quaternion_from_euler(rvecs[i][0][0],rvecs[i][0][1], rvecs[i][0][2], 'rzyx')
@@ -171,7 +176,7 @@ class ArucoDetector(object):
             rvec = tf.transformations.quaternion_from_matrix(rvec)
             ros.loginfo("COMPARE: " + str(t_rvec) + "||" + str(rvec))
             self.br.sendTransform(
-                tvecs[i][0], t_rvec, ros.Time.now(), "temp/" + str(ids[i][0]),
+                tvecs[i][0], rvec, ros.Time.now(), "temp/" + str(ids[i][0]),
                 "temp/camera")
 
             trans, rot = self.ls.lookupTransform("temp/" + str(ids[i][0]), "temp/camera",ros.Time())
@@ -199,7 +204,7 @@ class ArucoDetector(object):
                 rvec = M
                 rvec = tf.transformations.quaternion_from_matrix(rvec)
 
-                self.br.sendTransform(tvecs[i][0], t_rvec, ros.Time.now(), "temp2/" + str(ids[i][0]), "/camera")
+                self.br.sendTransform(tvecs[i][0], rvec, ros.Time.now(), "temp2/" + str(ids[i][0]), "/camera")
                 add_trans, add_rot = self.ls.lookupTransform("/world", "temp2/" + str(ids[i][0]), ros.Time())
 
                 if (self.loop < 10):
