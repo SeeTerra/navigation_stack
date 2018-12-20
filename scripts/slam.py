@@ -35,19 +35,25 @@ class Slam:
         for i in msg.transforms:
             t, r = self.arrayify(i.transform)
             if i.fiducial_id in self.id_db: #UPDATE POSITION
-                #ros.logdebug("FIDUCIAL FOUND")
                 t1,r1 = self.inverseTransform(t,r)
+                ros.logwarn(t)
+                ros.logwarn(np.linalg.norm(t))
+                ros.logwarn(t1)
+                ros.logwarn(np.linalg.norm(t1))
                 t1 = Vector3(t[0],t[1],t[2])
                 r1 = Quaternion(r[0],r[1],r[2],r[3])
+                ros.loginfo(Transform(t1,r1))
                 self.position = self.addTransforms(self.id_db[i.fiducial_id], Transform(t1,r1))
-                ros.logdebug(self.position)
-                #t1, r1 = self.arrayify(self.position)
+                t1, r1 = self.arrayify(self.position)
+                ros.logdebug(self.position.translation)
                 #self.br.sendTransform(t1,r1,ros.Time.now(), "/camera", "/world")
             else: #UPDATE DATABASE
                 print()
-                self.id_db[i.fiducial_id] = self.addTransforms(self.position,i.transform)
+                #self.id_db[i.fiducial_id] = self.addTransforms(self.position,i.transform)
             #t2,r2 = self.arrayify(self.id_db[i.fiducial_id])
             #self.br.sendTransform(t2,r2,ros.Time.now(), "/world", "/tags/" + str(i.fiducial_id))
+
+            ros.logerr(self.addTransforms(self.position,i.transform).translation)
 
     def startDatabase(self, id):
         ''' Populate database with initial tag '''
@@ -87,13 +93,14 @@ class Slam:
 
     def inverseTransform(self, trans, rot):
 
-        transform = t.concatenate_matrices(t.translation_matrix(trans), t.quaternion_matrix(rot))
+        #transform = t.concatenate_matrices(t.translation_matrix(trans), t.quaternion_matrix(rot))
+        transform = t.compose_matrix(translate=trans,angles=t.euler_from_quaternion(rot))
         inversed_transform = t.inverse_matrix(transform)
 
-        trans = t.translation_from_matrix(inversed_transform)
+        tran = t.translation_from_matrix(inversed_transform)
         quat = t.quaternion_from_matrix(inversed_transform)
 
-        return trans, quat
+        return tran, quat
 
     def arrayify(self, n):
         ''' Turn the transform into two nparrays, translation and rotation '''
