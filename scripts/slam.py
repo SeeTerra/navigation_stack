@@ -25,6 +25,7 @@ class Slam:
         self.id_db = dict()
 
         self.position = Transform()
+        self.tracking = False
 
     def cb(self, msg):
         ''' Callback loop '''
@@ -35,25 +36,24 @@ class Slam:
         for i in msg.transforms:
             t, r = self.arrayify(i.transform)
             if i.fiducial_id in self.id_db: #UPDATE POSITION
+                self.tracking = True
                 t1,r1 = self.inverseTransform(t,r)
-                ros.logwarn(t)
-                ros.logwarn(np.linalg.norm(t))
-                ros.logwarn(t1)
-                ros.logwarn(np.linalg.norm(t1))
-                t1 = Vector3(t[0],t[1],t[2])
-                r1 = Quaternion(r[0],r[1],r[2],r[3])
-                ros.loginfo(Transform(t1,r1))
-                self.position = self.addTransforms(self.id_db[i.fiducial_id], Transform(t1,r1))
+                t1 = Vector3(t1[0],t1[1],t1[2])
+                r1 = Quaternion(r1[0],r1[1],r1[2],r1[3])
+                f = Transform(t1,r1)
+                self.position = self.addTransforms(self.id_db[i.fiducial_id], f)
                 t1, r1 = self.arrayify(self.position)
-                ros.logdebug(self.position.translation)
-                #self.br.sendTransform(t1,r1,ros.Time.now(), "/camera", "/world")
+                self.br.sendTransform(t1,r1,ros.Time.now(), "/camera", "/world")
             else: #UPDATE DATABASE
-                print()
-                #self.id_db[i.fiducial_id] = self.addTransforms(self.position,i.transform)
-            #t2,r2 = self.arrayify(self.id_db[i.fiducial_id])
-            #self.br.sendTransform(t2,r2,ros.Time.now(), "/world", "/tags/" + str(i.fiducial_id))
+                if self.tracking:
+                    self.id_db[i.fiducial_id] = self.addTransforms(self.position,i.transform)
 
-            ros.logerr(self.addTransforms(self.position,i.transform).translation)
+        for key in self.id_db:
+            t,r = self.arrayify(self.id_db[key])
+            self.br.sendTransform(t,r,ros.Time.now(), "/tags/" + str(key), "/world")
+
+        ros.logdebug("TRACKING: " + str(self.tracking))
+        self.tracking = False
 
     def startDatabase(self, id):
         ''' Populate database with initial tag '''
@@ -66,13 +66,21 @@ class Slam:
     def addTransforms(self, frame1, frame2):
         ''' Adds two transforms to get a resulting transform '''
 
-        trans = Vector3(frame1.translation.x + frame2.translation.x,
-                            frame1.translation.y + frame2.translation.y,
-                            frame1.translation.z + frame2.translation.z)
+        t1 = np.array([frame1.translation.x,frame1.translation.y,frame1.translation.z])
+        t2 = np.array([frame2.translation.x,frame2.translation.y,frame2.translation.z])
 
-        rot1 = np.array([frame1.rotation.x, frame1.rotation.y, frame1.rotation.z, frame1.rotation.w])
-        rot2 = np.array([frame2.rotation.x, frame2.rotation.y, frame2.rotation.z, frame2.rotation.w])
-        rot = self.q_mult(rot1, rot2)
+        r1 = np.array([frame1.rotation.x, frame1.rotation.y, frame1.rotation.z, frame1.rotation.w])
+        r2 = np.array([frame2.rotation.x, frame2.rotation.y, frame2.rotation.z, frame2.rotation.w])
+
+        f1 = t.compose_matrix(translate=t1,angles=t.euler_from_quaternion(r1))
+        f2 = t.compose_matrix(translate=t2,angles=t.euler_from_quaternion(r2))
+
+        f = np.matmul(f1,f2)
+
+        trans = t.translation_from_matrix(f)
+        rot = t.quaternion_from_matrix(f)
+
+        trans = Vector3(trans[0],trans[1],trans[2])
         rot = Quaternion(rot[0],rot[1],rot[2],rot[3])
 
         return Transform(trans, rot)
