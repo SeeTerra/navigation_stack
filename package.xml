@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>zayas_test</name>
+  <name>navigation_stack</name>
   <version>0.0.2</version>
-  <description>The zayas_test package</description>
+  <description>The navigation_stack package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
