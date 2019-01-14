@@ -1,8 +1,9 @@
 <launch>
 
     <node name="aruco_detector" pkg="zayas_test" type="aruco_detect.py" output="screen">
-      <param name="image_topic" type='str' value="/usb_cam/image_raw"/>
-      <param name="camera_info_topic" type='str' value="/usb_cam/camera_info"/>
+      <param name="legacy_mode" type='bool' value=True>
+      <param name="image_topic" type='str' value="/camera/image"/>
+      <param name="camera_info_topic" type='str' value="/camera/camera_info"/>
     </node>
 
     <node name="usb_cam" pkg="usb_cam" type="usb_cam_node" output="screen" >

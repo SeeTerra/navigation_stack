@@ -4,6 +4,7 @@ import numpy as np
 import rospy as ros
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import CameraInfo
+from wfov_camera_msgs.msg import WFOVImage
 import cv2
 import cv2.aruco as aruco
 from cv_bridge import CvBridge, CvBridgeError
@@ -22,6 +23,13 @@ class ArucoDetector(object):
         self.bridge = CvBridge()
         self.rate = ros.Rate(90) # in hz
 
+        # Legacy Mode? (ROS Message = Image msg)
+        try:
+            self.legacy_mode = ros.get_param('~legacy_mode')
+        except:
+            ros.logerr("Warning, legacy param not provided. Assuming Legacy Mode")
+            self.legacy_mode = True
+
         # Initialize ROS Subscriber
         try:
             image_topic = ros.get_param('~image_topic')
@@ -29,7 +37,10 @@ class ArucoDetector(object):
             ros.logerr("Image topic not set in launch file!")
             exit()
         ros.logdebug("Image topic loaded..")
-        self.sub = ros.Subscriber(image_topic, Image, self.cbDetect)
+        if(self.legacy_mode):
+            self.sub = ros.Subscriber(image_topic, Image, self.cbDetect)
+        else:
+            self.sub = ros.Subscriber(image_topic, WFOVImage, self.cbDetect)
 
         # Initialize tf broadcaster/listener and first tag check
         self.br = tf.TransformBroadcaster()
@@ -53,12 +64,12 @@ class ArucoDetector(object):
         self.loadCalibration()
 
         # Configure aruco detector
-        self.aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
+        self.aruco_dict = aruco.Dictionary_get(aruco.DICT_ARUCO_ORIGINAL)
         self.aruco_params = aruco.DetectorParameters_create()
         ros.logdebug(self.aruco_params.adaptiveThreshWinSizeMin)
         ros.logdebug(self.aruco_params.adaptiveThreshWinSizeMax)
-        self.aruco_params.adaptiveThreshWinSizeMin = 20
-        self.aruco_params.adaptiveThreshWinSizeMax = 30
+        #self.aruco_params.adaptiveThreshWinSizeMin = 20
+        #self.aruco_params.adaptiveThreshWinSizeMax = 30
         self.aruco_params.cornerRefinementMethod = 1
 
         # Initialize database of id and world coordinates
@@ -102,6 +113,7 @@ class ArucoDetector(object):
         try:
             image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
             img = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            img = cv2.resize(img, (300,300)) #TODO: Make size determined by launch
         except CvBridgeError as e:
             print(e)
         return img
@@ -122,7 +134,7 @@ class ArucoDetector(object):
         ##TODO: Split tf and aruco pose extraction
         # This method is super gross right now and you should be embarassed.
         rvecs, tvecs, _objPoints = aruco.estimatePoseSingleMarkers(
-            corners, .185, self.matrix, self.dist)
+            corners, .1, self.matrix, self.dist)
         self.rvecs = rvecs
         self.tvecs = tvecs
 
@@ -147,21 +159,31 @@ class ArucoDetector(object):
             self.br.sendTransform(
             w_tvec, w_rvec, ros.Time.now(), "/" + str(key), "/world")
 
+
+
         # LOOP THROUGH ALL DETECTED IDS
         for i in range(len(ids)):
             ##TODO: Pretty much this entire loop should be handled by a db node
 
+            ##TODO: Remove t_rvec, it was a mistake.
             # UPDATE OUR CAMERA POSITION BASED ON TAGS
+            ros.loginfo("RAW RVECS:" + str(rvecs))
+            t_rvec = tf.transformations.quaternion_from_euler(rvecs[i][0][0],rvecs[i][0][1], rvecs[i][0][2], 'rzyx')
             rvec = cv2.Rodrigues(rvecs[i])
             M = np.identity(4)
             M[:3, :3] = rvec[0]
             rvec = M
             rvec = tf.transformations.quaternion_from_matrix(rvec)
+            ros.loginfo("COMPARE: " + str(t_rvec) + "||" + str(rvec))
             self.br.sendTransform(
                 tvecs[i][0], rvec, ros.Time.now(), "temp/" + str(ids[i][0]),
                 "temp/camera")
 
-            trans, rot = self.ls.lookupTransform("temp/camera", "temp/" + str(ids[i][0]),ros.Time())
+            trans, rot = self.ls.lookupTransform("temp/" + str(ids[i][0]), "temp/camera",ros.Time())
+
+            ros.loginfo(tvecs[i][0])
+            ros.loginfo(trans)
+            ros.loginfo("NORM[TVEC(" + str(ids[i][0]) + ")]: " + str(np.linalg.norm(tvecs[i][0])))
 
             if (ids[i][0] in self.id_db):
                 self.br.sendTransform(trans, rot, ros.Time.now(), "/camera", "/" + str(ids[i][0]))
@@ -175,6 +197,7 @@ class ArucoDetector(object):
             if ((ids[i][0] not in self.id_db) and (self.tracking == True)):
                 # TODO: CREATE A FUNCTION FOR THIS
                 # Rodrigues -> Euler
+                t_rvec = tf.transformations.quaternion_from_euler(rvecs[i][0][0],rvecs[i][0][1], rvecs[i][0][2], 'rzyx')
                 rvec = cv2.Rodrigues(rvecs[i])
                 M = np.identity(4)
                 M[:3, :3] = rvec[0]
@@ -255,6 +278,11 @@ class ArucoDetector(object):
 
 ################################################################################
 
+    def rotationVectorToQuaternion(self, rvec):
+        ''' Custom method to convert the rvecs to quaternions '''
+
+        print("TEST.")
+
     def drawMarkers(self, corners, frame):
         ''' Draws the detected markers on the frame. '''
         debugFrame = aruco.drawDetectedMarkers(frame, corners)
@@ -270,7 +298,10 @@ class ArucoDetector(object):
     def cbDetect(self, msg):
         ''' The main callback loop, run whenever a frame is received. '''
 
-        frame = self.extractImage(msg)
+        if (self.legacy_mode):
+            frame = self.extractImage(msg)
+        else:
+            frame = self.extractImage(msg.image)
 
         corners, ids = self.detectMarkers(frame)
 
