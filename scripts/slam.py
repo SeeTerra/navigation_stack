@@ -20,6 +20,8 @@ class Slam:
 		""" Initialize slam node """
 
 		ros.init_node("slam", anonymous=False, log_level=ros.DEBUG)
+		#####################TEMP: VICON ERROR ANALYSIS#########################
+		self.sub_2 = ros.Subscriber("/vicon/omni3/omni3", TransformStamped, self.cb_test)
 		self.sub = ros.Subscriber("/fiducial_transforms", FiducialTransformArray, self.cb)
 		self.rate = ros.Rate(rate) # in hz
 		self.br = tf.TransformBroadcaster()
@@ -63,6 +65,9 @@ class Slam:
 
 		ros.logdebug("TRACKING: " + str(self.tracking))
 		self.tracking = False
+
+	def cb_test(self, msg):
+		print(msg)
 
 	def startDatabase(self, id):
 		""" Populate database with initial tag """
@@ -144,8 +149,7 @@ class Slam:
 
 if __name__=="__main__":
 
-	if sys.argv[1] != None:
-
+	try:
 		if sys.argv[1].lower() == "true":
 			setup_mode = True
 		elif sys.argv[1].lower() == "false":
@@ -153,7 +157,7 @@ if __name__=="__main__":
 		else:
 			print "Please enter True or False for the first argument (setup_mode)"
 			exit()
-	else:
+	except:
 		setup_mode = False
 
 	slam = Slam(setup_mode)

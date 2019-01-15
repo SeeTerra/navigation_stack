@@ -30,6 +30,13 @@
  <arg name="camera_serial" default="0" />
  <arg name="calibrated" default="0" />
 
+ <node pkg="vicon_bridge" type="vicon_bridge" name="vicon" output="screen">
+        <param name="stream_mode" value="ClientPull" type="str" />
+        <param name="datastream_hostport" value="192.168.1.129:801" type="str" />
+        <!--param name="datastream_hostport" value="vicon:801" type="str" /-->
+        <param name="tf_ref_frame_id" value="/world" type="str" />
+        </node>
+
  <group ns="$(arg camera_name)">
    <node pkg="nodelet" type="nodelet" name="camera_nodelet_manager" args="manager" />
 
