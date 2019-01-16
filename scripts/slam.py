@@ -132,7 +132,7 @@ class Slam:
 	def saveTagConfiguration(self):
 		""" Save tag configuration to yaml file """
 
-		rospy.info("Saving tag configuration..")
+		rospy.loginfo("Saving tag configuration..")
 		#TEMP: Temporary file location, link dynamically
 		with open('/home/nuc/catkin_ws/src/navigation_stack/config/id_db.yml', 'w') as yaml_file:
 			yaml.dump(self.id_db, yaml_file)
@@ -173,7 +173,12 @@ class Slam:
 			tag_from_tf = Transform(t,r) # Transform must be in Vector3 and Quaternion
 
 			# Compare transforms
-			transform_difference = self.addTransforms(tag_from_cam,self.inverseTransform(tag_from_tf.translation,tag_from_tf.rotation))
+			tf_t, tf_r = self.arrayify(tag_from_tf)
+			tf_t, tf_r = self.inverseTransform(tf_t,tf_r)
+			tf_t = Vector3(tf_t[0],tf_t[1],tf_t[2])
+			tf_r = Quaternion(tf_r[0],tf_r[1],tf_r[2],tf_r[3])
+			tag_from_tf = Transform(tf_r,tf_r) # Transform must be in Vector3 and Quaternion
+			transform_difference = self.addTransforms(tag_from_cam,tag_from_tf)
 			rospy.logdebug(str(tag.fiducial_id) + "ERROR: \n" + str(transform_difference))
 
 if __name__== "__main__":

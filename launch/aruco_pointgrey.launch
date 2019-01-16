@@ -5,7 +5,7 @@
   <arg name="image" default="image_mono"/>
   <arg name="transport" default="compressed"/>
   <arg name="fiducial_len" default="0.138684"/>
-  <arg name="dictionary" default="16"/> <!--10 for 6x6, 16 for original-->
+  <arg name="dictionary" default="10"/> <!--10 for 6x6, 16 for original-->
   <arg name="do_pose_estimation" default="true"/>
   <arg name="ignore_fiducials" default=""/>
   <arg name="fiducial_len_override" default="" />

@@ -13,19 +13,19 @@
         args: [f8, 0, 1]
         state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
       - !!binary |
-        1Oo5Sgx61j8=
+        5t4tOf4+yT8=
     - !!python/object/apply:numpy.core.multiarray.scalar
       - !!python/object/apply:numpy.dtype
         args: [f8, 0, 1]
         state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
       - !!binary |
-        INFfUuCKk78=
+        gN1Gdv3BY78=
     - !!python/object/apply:numpy.core.multiarray.scalar
       - !!python/object/apply:numpy.dtype
         args: [f8, 0, 1]
         state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
       - !!binary |
-        AEyFw40AW78=
+        YILlZTvJjj8=
   - !!python/object/new:geometry_msgs.msg._Quaternion.Quaternion
     state:
     - !!python/object/apply:numpy.core.multiarray.scalar
@@ -33,22 +33,70 @@
         args: [f8, 0, 1]
         state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
       - !!binary |
-        sL/trwjgk78=
+        iVw2U+fwlj8=
     - !!python/object/apply:numpy.core.multiarray.scalar
       - !!python/object/apply:numpy.dtype
         args: [f8, 0, 1]
         state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
       - !!binary |
-        3IkBNnp5hr8=
+        Z4mhlBrzgr8=
     - !!python/object/apply:numpy.core.multiarray.scalar
       - !!python/object/apply:numpy.dtype
         args: [f8, 0, 1]
         state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
       - !!binary |
-        GAz9/1/2FL8=
+        Qs1K7ESvWL8=
     - !!python/object/apply:numpy.core.multiarray.scalar
       - !!python/object/apply:numpy.dtype
         args: [f8, 0, 1]
         state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
       - !!binary |
-        2nuuofb97z8=
+        Oj82d5X97z8=
+101: !!python/object/new:geometry_msgs.msg._Transform.Transform
+  state:
+  - !!python/object/new:geometry_msgs.msg._Vector3.Vector3
+    state:
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - !!python/object/apply:numpy.dtype
+        args: [f8, 0, 1]
+        state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+      - !!binary |
+        FCc/+vkA0b8=
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - !!python/object/apply:numpy.dtype
+        args: [f8, 0, 1]
+        state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+      - !!binary |
+        mhHNMidTzT8=
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - !!python/object/apply:numpy.dtype
+        args: [f8, 0, 1]
+        state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+      - !!binary |
+        hLzXPxxivD8=
+  - !!python/object/new:geometry_msgs.msg._Quaternion.Quaternion
+    state:
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - !!python/object/apply:numpy.dtype
+        args: [f8, 0, 1]
+        state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+      - !!binary |
+        rbWT+pdjuD8=
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - !!python/object/apply:numpy.dtype
+        args: [f8, 0, 1]
+        state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+      - !!binary |
+        im1KQw/YpD8=
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - !!python/object/apply:numpy.dtype
+        args: [f8, 0, 1]
+        state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+      - !!binary |
+        qDBwx28Nzr8=
+    - !!python/object/apply:numpy.core.multiarray.scalar
+      - !!python/object/apply:numpy.dtype
+        args: [f8, 0, 1]
+        state: !!python/tuple [3, <, null, null, null, -1, -1, 0]
+      - !!binary |
+        7FMZJqft7j8=
