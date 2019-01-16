@@ -27,6 +27,11 @@ class Slam:
 		self.rate = rospy.Rate(rate) # in hz
 		self.br = tf.TransformBroadcaster()
 		self.ls = tf.TransformListener()
+		#TEMP: There's a better solution for this, but prototype for now
+		self.temp_1 = []
+		self.temp_2 = []
+		self.temp_3 = []
+
 
 		self.id_db = dict()
 		if setup_mode:
@@ -63,6 +68,7 @@ class Slam:
 				self.br.sendTransform(t1,r1,rospy.Time.now(), "/camera", "/world")
 			else: # UPDATE DATABASE
 				if self.tracking:
+					self.updateDatabase(i,t,r)
 					self.id_db[i.fiducial_id] = self.addTransforms(self.position,i.transform)
 
 		for key in self.id_db:
@@ -180,6 +186,42 @@ class Slam:
 			tag_from_tf = Transform(tf_r,tf_r) # Transform must be in Vector3 and Quaternion
 			transform_difference = self.addTransforms(tag_from_cam,tag_from_tf)
 			rospy.logdebug(str(tag.fiducial_id) + "ERROR: \n" + str(transform_difference))
+			for attribute in transform_difference:
+				#TEMP:
+				if attribute > 0.5:
+					rospy.logerror("TAG POSITIONS MOVED. Fix tags or rerun setup")
+
+	def updateDatabase(self, tag, t, r, samples = 10):
+		""" Grab a number of samples then average and add to database """
+
+		if len(self.temp_1):
+			self.temp_1.append(np.array[(t,r)])
+		elif len(self.temp_2):
+			self.temp_2.append(np.array[(t,r)])
+		elif len(self.temp_3):
+			self.temp_3.append(np.array[(t,r)])
+		else:
+			rospy.logwarn("All temporary arrays full.")
+
+		if len(self.temp_1) == samples:
+			self.temp_1 = reject_outliers(self.temp_1)
+			avg = np.average(self.temp_1)
+			rospy.logdebug(avg)
+		elif len(self.temp_2) == samples:
+			#log
+		elif len(self.temp_3) == samples:
+			#log
+		else:
+			return
+
+	def reject_outliers(data, m = 2.):
+		""" Rejects Outliers
+		borrowed from https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list """
+
+    	d = np.abs(data - np.median(data))
+    	mdev = np.median(d)
+    	s = d/mdev if mdev else 0.
+    	return data[s<m]
 
 if __name__== "__main__":
 
