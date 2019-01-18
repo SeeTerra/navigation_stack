@@ -200,64 +200,61 @@ class Slam:
 
 	def updateDatabase(self, tag, t, r, samples = 30):
 		""" Grab a number of samples then average and add to database """
+		#TODO: There's gotta be a better way to do this, maybe tag_db node
+
+		rospy.logdebug(tag.fiducial_id)
 
 		if not len(self.temp_1) or self.temp_db[1] == tag.fiducial_id:
+			rospy.logdebug("LOGGING SAMPLE IN TEMP_1")
 			self.temp_1.append(np.array((t,r)))
 			self.temp_db[1] = tag.fiducial_id
-		elif not len(self.temp_2):
+		elif not len(self.temp_2) or self.temp_db[2] == tag.fiducial_id:
+			rospy.logdebug("LOGGING SAMPLE IN TEMP_2")
 			self.temp_2.append(np.array((t,r)))
-			self.temp_db[1] = tag.fiducial_id
-		elif not len(self.temp_3):
+			self.temp_db[2] = tag.fiducial_id
+		elif not len(self.temp_3) or self.temp_db[3] == tag.fiducial_id:
+			rospy.logdebug("LOGGING SAMPLE IN TEMP_3")
 			self.temp_3.append(np.array((t,r)))
-			self.temp_db[1] = tag.fiducial_id
+			self.temp_db[3] = tag.fiducial_id
 		else:
 			rospy.logwarn("All temporary arrays in use.")
 
 		if len(self.temp_1) == samples:
 			rospy.logdebug("AVERAGING TEMP_1")
-			rospy.logwarn(self.temp_1)
 			#temp_1 = self.reject_outliers(self.temp_1)
 			#rospy.logwarn(temp_1)
 			avg = np.average(self.temp_1, axis=0)
-			print(avg[0])
-			print(avg[1])
 			t = Vector3(avg[0][0],avg[0][1],avg[0][2])
-			print(t)
 			r = Quaternion(avg[1][0],avg[1][1],avg[1][2],avg[1][3])
 			tag_transform = Transform(t,r)
+			self.temp_1 = []
 			self.temp_db[1] = None
 			self.id_db[tag.fiducial_id] = tag_transform
-			rospy.logdebug(tag_transform)
+			rospy.logdebug("TEMP_1 DUMPED")
 		elif len(self.temp_2) == samples:
 			rospy.logdebug("AVERAGING TEMP_2")
-			rospy.logwarn(self.temp_2)
 			#temp_2 = self.reject_outliers(self.temp_2)
 			#rospy.logwarn(temp_2)
 			avg = np.average(self.temp_2, axis=0)
-			print(avg[0])
-			print(avg[1])
 			t = Vector3(avg[0][0],avg[0][1],avg[0][2])
-			print(t)
 			r = Quaternion(avg[1][0],avg[1][1],avg[1][2],avg[1][3])
 			tag_transform = Transform(t,r)
+			self.temp_2 = []
 			self.temp_db[2] = None
 			self.id_db[tag.fiducial_id] = tag_transform
-			rospy.logdebug(tag_transform)
+			rospy.logdebug("TEMP_2 DUMPED")
 		elif len(self.temp_3) == samples:
 			rospy.logdebug("AVERAGING TEMP_3")
-			rospy.logwarn(self.temp_3)
 			#temp_3 = self.reject_outliers(self.temp_3)
 			#rospy.logwarn(temp_3)
 			avg = np.average(self.temp_3, axis=0)
-			print(avg[0])
-			print(avg[1])
 			t = Vector3(avg[0][0],avg[0][1],avg[0][2])
-			print(t)
 			r = Quaternion(avg[1][0],avg[1][1],avg[1][2],avg[1][3])
 			tag_transform = Transform(t,r)
+			self.temp_3 = []
 			self.temp_db[3] = None
 			self.id_db[tag.fiducial_id] = tag_transform
-			rospy.logdebug(tag_transform)
+			rospy.logdebug("TEMP_3 DUMPED")
 		else:
 			return
 
