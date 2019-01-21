@@ -79,6 +79,7 @@ class Slam:
 
 	def cb(self, msg):
 		""" Callback loop """
+		#TODO: Split callback for readability
 
 		# If we have a database, check tags against it
 		if self.id_db:
@@ -88,24 +89,19 @@ class Slam:
 		if (not self.id_db) and msg.transforms:
 			self.startDatabase(msg.transforms[0].fiducial_id)
 
+
 		for i in msg.transforms:
-			t, r = self.arrayify(i.transform)
 			if i.fiducial_id in self.id_db: # ..THEN UPDATE POSITION
-				#rospy.logdebug("Updating Position")
 				self.tracking = True
-				t1,r1 = self.inverseTransform(t,r)
-				t1 = Vector3(t1[0],t1[1],t1[2])
-				r1 = Quaternion(r1[0],r1[1],r1[2],r1[3])
-				f = Transform(t1,r1) # Transform must be in Vector3 and Quaternion
+				f = self.inverseTransform(i.transform)
 				self.position = self.addTransforms(self.id_db[i.fiducial_id], f)
 				t1, r1 = self.arrayify(self.position)
 				self.br.sendTransform(t1,r1,rospy.Time.now(), "/camera", "/world")
 			else: # UPDATE DATABASE
-				#rospy.logdebug("Updating Database")
 				if self.tracking:
 					world_to_tag = self.addTransforms(self.position,i.transform)
-					t, r = self.arrayify(world_to_tag)
-					self.updateDatabase(i,t,r)
+					translation, rotation = self.arrayify(world_to_tag)
+					self.updateDatabase(i,translation,rotation)
 					#self.id_db[i.fiducial_id] = self.addTransforms(self.position,i.transform)
 
 		for key in self.id_db:
@@ -128,7 +124,7 @@ class Slam:
 		""" Uses the camera's current position as well as any detected tags
 		to check against the database and determine whether there is an error."""
 
-		# Camera's world transform from tf
+		# Camera's world transform (from tf)
 		try:
 			t, r = self.ls.lookupTransform('/camera', '/world', rospy.Time())
 			t = Vector3(t[0],t[1],t[2])
@@ -139,15 +135,19 @@ class Slam:
 			rospy.logwarn(str(e))
 			return 0
 
-	def inverseTransform(self, trans, rot):
+	def inverseTransform(self, input_transform):
 
-		transform = t.compose_matrix(translate=trans,angles=t.euler_from_quaternion(rot))
+		translation, rotation = self.arrayify(input_transform)
+
+		transform = t.compose_matrix(translate=translation,angles=t.euler_from_quaternion(rotation))
 		inversed_transform = t.inverse_matrix(transform)
 
-		tran = t.translation_from_matrix(inversed_transform)
-		quat = t.quaternion_from_matrix(inversed_transform)
+		translation = t.translation_from_matrix(inversed_transform)
+		quaternion = t.quaternion_from_matrix(inversed_transform)
 
-		return tran, quat
+		final_transform = self.transformify(translation, quaternion)
+
+		return final_transform
 
 	def loadTagConfiguration(self):
 		""" Load tag configuration from yaml file """
@@ -187,27 +187,37 @@ class Slam:
 				tags.append(tag)
 
 		# Do error detection
-		for tag in tags:
-			tag_from_cam = self.addTransforms(camera_position,tag.transform)
-			t, r = self.ls.lookupTransform('/tags/' + str(tag.fiducial_id), '/world', rospy.Time())
-			t = Vector3(t[0],t[1],t[2])
-			r = Quaternion(r[0],r[1],r[2],r[3])
-			tag_from_tf = Transform(t,r) # Transform must be in Vector3 and Quaternion
+		#TODO: Move this to appropriate block
+		#for tag in tags:
+		#	tag_from_cam = self.addTransforms(camera_position,tag.transform)
+		#	t, r = self.ls.lookupTransform('/tags/' + str(tag.fiducial_id), '/world', rospy.Time())
+		#	t = Vector3(t[0],t[1],t[2])
+		#	r = Quaternion(r[0],r[1],r[2],r[3])
+		#	tag_from_tf = Transform(t,r) # Transform must be in Vector3 and Quaternion
 
 			# Compare transforms
-			tf_t, tf_r = self.arrayify(tag_from_tf)
-			tf_t, tf_r = self.inverseTransform(tf_t,tf_r)
-			tf_t = Vector3(tf_t[0],tf_t[1],tf_t[2])
-			tf_r = Quaternion(tf_r[0],tf_r[1],tf_r[2],tf_r[3])
-			tag_from_tf = Transform(tf_r,tf_r) # Transform must be in Vector3 and Quaternion
-			transform_difference = self.addTransforms(tag_from_cam,tag_from_tf)
+		#	tf_t, tf_r = self.arrayify(tag_from_tf)
+		#	tf_t, tf_r = self.inverseTransform(tf_t,tf_r)
+		#	tf_t = Vector3(tf_t[0],tf_t[1],tf_t[2])
+		#	tf_r = Quaternion(tf_r[0],tf_r[1],tf_r[2],tf_r[3])
+		#	tag_from_tf = Transform(tf_r,tf_r) # Transform must be in Vector3 and Quaternion
+		#	transform_difference = self.addTransforms(tag_from_cam,tag_from_tf)
 			#rospy.logdebug(str(tag.fiducial_id) + "ERROR: \n" + str(transform_difference))
 			#for attribute in transform_difference:
 				#TEMP:
 			#	if attribute > 0.5:
 			#		rospy.logerror("TAG POSITIONS MOVED. Fix tags or rerun setup")
 
-	def updateDatabase(self, tag, t, r, samples = 30):
+	def transformify(self, t, r):
+		""" Turns a translation and rotation to a transform object """
+
+		translation = Vector3(t[0],t[1],t[2])
+		rotation= Quaternion(r[0],r[1],r[2],r[3])
+		transform = Transform(translation, rotation)
+
+		return transform
+
+	def updateDatabase(self, tag, t, r, samples = 15):
 		""" Grab a number of samples then average and add to database """
 		#TODO: There's gotta be a better way to do this, maybe tag_db node
 
