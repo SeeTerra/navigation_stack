@@ -243,9 +243,7 @@ class Slam:
 			#temp_1 = self.reject_outliers(self.temp_1)
 			#rospy.logwarn(temp_1)
 			avg = np.average(self.temp_1, axis=0)
-			t = Vector3(avg[0][0],avg[0][1],avg[0][2])
-			r = Quaternion(avg[1][0],avg[1][1],avg[1][2],avg[1][3])
-			tag_transform = Transform(t,r)
+			tag_transform = self.transformify(avg[0],avg[1])
 			self.temp_1 = []
 			self.temp_db[1] = None
 			self.id_db[tag.fiducial_id] = tag_transform
@@ -255,9 +253,7 @@ class Slam:
 			#temp_2 = self.reject_outliers(self.temp_2)
 			#rospy.logwarn(temp_2)
 			avg = np.average(self.temp_2, axis=0)
-			t = Vector3(avg[0][0],avg[0][1],avg[0][2])
-			r = Quaternion(avg[1][0],avg[1][1],avg[1][2],avg[1][3])
-			tag_transform = Transform(t,r)
+			tag_transform = self.transformify(avg[0],avg[1])
 			self.temp_2 = []
 			self.temp_db[2] = None
 			self.id_db[tag.fiducial_id] = tag_transform
@@ -267,9 +263,7 @@ class Slam:
 			#temp_3 = self.reject_outliers(self.temp_3)
 			#rospy.logwarn(temp_3)
 			avg = np.average(self.temp_3, axis=0)
-			t = Vector3(avg[0][0],avg[0][1],avg[0][2])
-			r = Quaternion(avg[1][0],avg[1][1],avg[1][2],avg[1][3])
-			tag_transform = Transform(t,r)
+			tag_transform = self.transformify(avg[0],avg[1])
 			self.temp_3 = []
 			self.temp_db[3] = None
 			self.id_db[tag.fiducial_id] = tag_transform
