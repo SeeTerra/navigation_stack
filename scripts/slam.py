@@ -47,6 +47,36 @@ class Slam:
 		self.position = Transform()
 		self.tracking = False
 
+	def addTransforms(self, frame1, frame2):
+		""" Adds two transform objects to get a resulting transform. """
+
+		t1 = np.array([frame1.translation.x,frame1.translation.y,frame1.translation.z])
+		t2 = np.array([frame2.translation.x,frame2.translation.y,frame2.translation.z])
+
+		r1 = np.array([frame1.rotation.x, frame1.rotation.y, frame1.rotation.z, frame1.rotation.w])
+		r2 = np.array([frame2.rotation.x, frame2.rotation.y, frame2.rotation.z, frame2.rotation.w])
+
+		f1 = t.compose_matrix(translate=t1,angles=t.euler_from_quaternion(r1))
+		f2 = t.compose_matrix(translate=t2,angles=t.euler_from_quaternion(r2))
+
+		f = np.matmul(f1,f2)
+
+		trans = t.translation_from_matrix(f)
+		rot = t.quaternion_from_matrix(f)
+
+		trans = Vector3(trans[0],trans[1],trans[2])
+		rot = Quaternion(rot[0],rot[1],rot[2],rot[3])
+
+		return Transform(trans, rot)
+
+	def arrayify(self, n):
+		""" Turn the transform into two nparrays, translation and rotation """
+
+		trans = np.array([n.translation.x, n.translation.y, n.translation.z])
+		rot = np.array([ n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w])
+
+		return trans, rot
+
 	def cb(self, msg):
 		""" Callback loop """
 
@@ -94,69 +124,6 @@ class Slam:
 
 		print(vicon_position)
 
-	def startDatabase(self, id):
-		""" Populate database with initial tag """
-
-		init = Transform()
-		init.rotation.w = 1
-
-		self.id_db[id] = init
-
-	def addTransforms(self, frame1, frame2):
-		""" Adds two transform objects to get a resulting transform. """
-
-		t1 = np.array([frame1.translation.x,frame1.translation.y,frame1.translation.z])
-		t2 = np.array([frame2.translation.x,frame2.translation.y,frame2.translation.z])
-
-		r1 = np.array([frame1.rotation.x, frame1.rotation.y, frame1.rotation.z, frame1.rotation.w])
-		r2 = np.array([frame2.rotation.x, frame2.rotation.y, frame2.rotation.z, frame2.rotation.w])
-
-		f1 = t.compose_matrix(translate=t1,angles=t.euler_from_quaternion(r1))
-		f2 = t.compose_matrix(translate=t2,angles=t.euler_from_quaternion(r2))
-
-		f = np.matmul(f1,f2)
-
-		trans = t.translation_from_matrix(f)
-		rot = t.quaternion_from_matrix(f)
-
-		trans = Vector3(trans[0],trans[1],trans[2])
-		rot = Quaternion(rot[0],rot[1],rot[2],rot[3])
-
-		return Transform(trans, rot)
-
-	def inverseTransform(self, trans, rot):
-
-		transform = t.compose_matrix(translate=trans,angles=t.euler_from_quaternion(rot))
-		inversed_transform = t.inverse_matrix(transform)
-
-		tran = t.translation_from_matrix(inversed_transform)
-		quat = t.quaternion_from_matrix(inversed_transform)
-
-		return tran, quat
-
-	def arrayify(self, n):
-		""" Turn the transform into two nparrays, translation and rotation """
-
-		trans = np.array([n.translation.x, n.translation.y, n.translation.z])
-		rot = np.array([ n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w])
-
-		return trans, rot
-
-	def saveTagConfiguration(self):
-		""" Save tag configuration to yaml file """
-
-		rospy.loginfo("Saving tag configuration..")
-		#TEMP: Temporary file location, link dynamically
-		with open('/home/nuc/catkin_ws/src/navigation_stack/config/id_db.yml', 'w') as yaml_file:
-			yaml.dump(self.id_db, yaml_file)
-
-	def loadTagConfiguration(self):
-		""" Load tag configuration from yaml file """
-
-		rospy.logdebug("Loading tag configuration")
-		with open('/home/nuc/catkin_ws/src/navigation_stack/config/id_db.yml', 'r') as yaml_file:
-			self.id_db = yaml.load(yaml_file)
-
 	def errorCheck(self, msg):
 		""" Uses the camera's current position as well as any detected tags
 		to check against the database and determine whether there is an error."""
@@ -171,6 +138,48 @@ class Slam:
 			rospy.logwarn("Camera not found in lookup!")
 			rospy.logwarn(str(e))
 			return 0
+
+	def inverseTransform(self, trans, rot):
+
+		transform = t.compose_matrix(translate=trans,angles=t.euler_from_quaternion(rot))
+		inversed_transform = t.inverse_matrix(transform)
+
+		tran = t.translation_from_matrix(inversed_transform)
+		quat = t.quaternion_from_matrix(inversed_transform)
+
+		return tran, quat
+
+	def loadTagConfiguration(self):
+		""" Load tag configuration from yaml file """
+
+		rospy.logdebug("Loading tag configuration")
+		with open('/home/nuc/catkin_ws/src/navigation_stack/config/id_db.yml', 'r') as yaml_file:
+			self.id_db = yaml.load(yaml_file)
+
+	def reject_outliers(data, m = 2.):
+		""" Rejects Outliers
+		borrowed from https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list """
+
+		d = np.abs(data - np.median(data))
+		mdev = np.median(d)
+		s = d/mdev if mdev else 0.
+		return data[s<m]
+
+	def saveTagConfiguration(self):
+		""" Save tag configuration to yaml file """
+
+		rospy.loginfo("Saving tag configuration..")
+		#TEMP: Temporary file location, link dynamically
+		with open('/home/nuc/catkin_ws/src/navigation_stack/config/id_db.yml', 'w') as yaml_file:
+			yaml.dump(self.id_db, yaml_file)
+
+	def startDatabase(self, id):
+		""" Populate database with initial tag """
+
+		init = Transform()
+		init.rotation.w = 1
+
+		self.id_db[id] = init
 
 		tags = []
 		for tag in msg.transforms:
@@ -257,15 +266,6 @@ class Slam:
 			rospy.logdebug("TEMP_3 DUMPED")
 		else:
 			return
-
-	def reject_outliers(data, m = 2.):
-		""" Rejects Outliers
-		borrowed from https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list """
-
-		d = np.abs(data - np.median(data))
-		mdev = np.median(d)
-		s = d/mdev if mdev else 0.
-		return data[s<m]
 
 if __name__== "__main__":
 
