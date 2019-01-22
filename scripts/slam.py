@@ -27,6 +27,7 @@ class Slam:
 		self.rate = rospy.Rate(rate) # in hz
 		self.br = tf.TransformBroadcaster()
 		self.ls = tf.TransformListener()
+		self.temp_position = []
 		#TEMP: There's a better solution for this, but prototype for now
 		self.temp_1 = []
 		self.temp_2 = []
@@ -34,7 +35,6 @@ class Slam:
 		self.temp_db = {1: None,
 						2: None,
 						3: None}
-
 
 		self.id_db = dict()
 		if setup_mode:
@@ -89,26 +89,30 @@ class Slam:
 		if (not self.id_db) and msg.transforms:
 			self.startDatabase(msg.transforms[0].fiducial_id)
 
-
 		for i in msg.transforms:
 			if i.fiducial_id in self.id_db: # ..THEN UPDATE POSITION
-				self.tracking = True
-				f = self.inverseTransform(i.transform)
-				self.position = self.addTransforms(self.id_db[i.fiducial_id], f)
-				t1, r1 = self.arrayify(self.position)
-				self.br.sendTransform(t1,r1,rospy.Time.now(), "/camera", "/world")
+				if len(msg.transforms) >= 2:
+					if self.tagCheck(i):
+						pass
+						print("PASSED")
+					else:
+						continue
+					print("TRACKING")
+					self.tracking = True
+					self.updatePosition(i)
+				else:
+					self.tracking = True
+					self.updatePosition(i)
 			else: # UPDATE DATABASE
 				if self.tracking:
 					world_to_tag = self.addTransforms(self.position,i.transform)
 					translation, rotation = self.arrayify(world_to_tag)
 					self.updateDatabase(i,translation,rotation)
-					#self.id_db[i.fiducial_id] = self.addTransforms(self.position,i.transform)
 
 		for key in self.id_db:
 			t,r = self.arrayify(self.id_db[key])
 			self.br.sendTransform(t,r,rospy.Time.now(), "/tags/" + str(key), "/world")
 
-		#rospy.logdebug("TRACKING: " + str(self.tracking))
 		self.tracking = False
 
 	def cb_test(self, msg):
@@ -186,27 +190,41 @@ class Slam:
 			if tag.fiducial_id in self.id_db:
 				tags.append(tag)
 
-		# Do error detection
-		#TODO: Move this to appropriate block
-		#for tag in tags:
-		#	tag_from_cam = self.addTransforms(camera_position,tag.transform)
-		#	t, r = self.ls.lookupTransform('/tags/' + str(tag.fiducial_id), '/world', rospy.Time())
-		#	t = Vector3(t[0],t[1],t[2])
-		#	r = Quaternion(r[0],r[1],r[2],r[3])
-		#	tag_from_tf = Transform(t,r) # Transform must be in Vector3 and Quaternion
+	def tagCheck(self, tag, translational_error=.1, rotational_error=.261799):
+		""" Checks whether the tag is where we expect it to be """
 
-			# Compare transforms
-		#	tf_t, tf_r = self.arrayify(tag_from_tf)
-		#	tf_t, tf_r = self.inverseTransform(tf_t,tf_r)
-		#	tf_t = Vector3(tf_t[0],tf_t[1],tf_t[2])
-		#	tf_r = Quaternion(tf_r[0],tf_r[1],tf_r[2],tf_r[3])
-		#	tag_from_tf = Transform(tf_r,tf_r) # Transform must be in Vector3 and Quaternion
-		#	transform_difference = self.addTransforms(tag_from_cam,tag_from_tf)
-			#rospy.logdebug(str(tag.fiducial_id) + "ERROR: \n" + str(transform_difference))
-			#for attribute in transform_difference:
-				#TEMP:
-			#	if attribute > 0.5:
-			#		rospy.logerror("TAG POSITIONS MOVED. Fix tags or rerun setup")
+		#DEBUG:
+		print self.addTransforms(tag.transform,self.inverseTransform(tag.transform))
+
+		tag_from_db = self.id_db[tag.fiducial_id]
+		tag_from_camera = self.addTransforms(self.position, tag.transform)
+
+		translation_difference, rotation_difference = self.arrayify(self.addTransforms(tag_from_db,self.inverseTransform(tag_from_camera)))
+		rotation_difference = t.euler_from_quaternion(rotation_difference)
+
+		error = False
+
+		# Position Error
+		for i in translation_difference:
+			if abs(i) >= translational_error:
+				error = True
+
+		# Rotational Error
+		for i in rotation_difference:
+			if abs(i) >= rotational_error:
+				error = True
+
+		# DEBUG:
+		rospy.loginfo("=======================================================")
+		rospy.loginfo("TAG: " + str(tag.fiducial_id))
+		rospy.loginfo("T_DIFF: " + str(translation_difference))
+		rospy.loginfo("R_DIFF: " + str(rotation_difference))
+
+		if error:
+			rospy.logwarn("TAG ERROR")
+			return False
+		else:
+			return True
 
 	def transformify(self, t, r):
 		""" Turns a translation and rotation to a transform object """
@@ -270,6 +288,23 @@ class Slam:
 			rospy.logdebug("TEMP_3 DUMPED")
 		else:
 			return
+
+	def updatePosition(self, tag, samples = 20):
+		""" Update the camera's position """
+
+		inverse_transform = self.inverseTransform(tag.transform)
+		self.position = self.addTransforms(self.id_db[tag.fiducial_id],
+											inverse_transform)
+		translation, rotation = self.arrayify(self.position)
+
+		# Build samples before publishing
+		if self.temp_position <= samples:
+			self.temp_position.append([translation,rotation])
+		else:
+			avg = np.average(self.temp_position, axis=0)
+			self.br.sendTransform(translation, rotation, rospy.Time.now(), "/camera", "/world")
+			self.temp_position = self.temp_position[1:]
+			self.temp_position.append([translation,rotation])
 
 if __name__== "__main__":
 
