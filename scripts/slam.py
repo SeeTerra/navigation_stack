@@ -21,7 +21,8 @@ class Slam:
 
 		rospy.init_node("slam", anonymous=False, log_level=rospy.DEBUG)
 		#####################TEMP: VICON ERROR ANALYSIS#########################
-		#self.sub_2 = rospy.Subscriber("/vicon/muskrat_24/muskrat_24", TransformStamped, self.cb_test)
+		self.tag_sub = rospy.Subscriber("/vicon/tag_1/tag_1", TransformStamped, self.cb_test)
+		self.cam_sub = rospy.Subscriber("/vicon/cam_1/cam_1", TransformStamped, self.cb_test)
 		########################################################################
 		self.sub = rospy.Subscriber("/fiducial_transforms", FiducialTransformArray, self.cb)
 		self.rate = rospy.Rate(rate) # in hz
