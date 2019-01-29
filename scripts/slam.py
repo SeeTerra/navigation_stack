@@ -11,7 +11,6 @@ from geometry_msgs.msg import *
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import CameraInfo
 from fiducial_msgs.msg import *
-from wfov_camera_msgs.msg import WFOVImage
 from tf import transformations as t
 
 class Slam:
