@@ -11,20 +11,20 @@ from geometry_msgs.msg import *
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import CameraInfo
 from fiducial_msgs.msg import *
-from wfov_camera_msgs.msg import WFOVImage
 from tf import transformations as t
 
 class Slam:
 
-	def __init__(self, setup_mode=True, rate=90):
+	def __init__(self, setup_mode=True, rate=60):
 		""" Initialize slam node """
 
 		rospy.init_node("slam", anonymous=False, log_level=rospy.DEBUG)
 		#####################TEMP: VICON ERROR ANALYSIS#########################
 		self.tag_sub = rospy.Subscriber("/vicon/tag_1/tag_1", TransformStamped, self.cb_test)
-		self.cam_sub = rospy.Subscriber("/vicon/cam_1/cam_1", TransformStamped, self.cb_test)
+		#self.cam_sub = rospy.Subscriber("/vicon/cam_1/cam_1", TransformStamped, self.cb_test)
 		########################################################################
-		self.sub = rospy.Subscriber("/fiducial_transforms", FiducialTransformArray, self.cb)
+		self.sub = rospy.Subscriber("camera_1/fiducial_transforms", FiducialTransformArray, self.updateBuffer1)
+		self.sub = rospy.Subscriber("camera_2/fiducial_transforms", FiducialTransformArray, self.updateBuffer2)
 		self.rate = rospy.Rate(rate) # in hz
 		self.br = tf.TransformBroadcaster()
 		self.ls = tf.TransformListener()
@@ -37,6 +37,11 @@ class Slam:
 						2: None,
 						3: None}
 
+		# Tag Buffer
+		#TODO: Variable buffer sizes
+		self.buffer_1 = np.zeros(5,dtype=object)
+		self.buffer_2 = np.zeros(5,dtype=object)
+
 		self.id_db = dict()
 		if setup_mode:
 			rospy.logdebug("SETUP MODE")
@@ -47,6 +52,10 @@ class Slam:
 
 		self.position = Transform()
 		self.tracking = False
+
+		while not rospy.is_shutdown():
+			self.cb()
+			self.rate.sleep()
 
 	def addTransforms(self, frame1, frame2):
 		""" Adds two transform objects to get a resulting transform. """
@@ -78,16 +87,33 @@ class Slam:
 
 		return trans, rot
 
-	def cb(self, msg):
+	def cb(self):
 		""" Callback loop """
-		#TODO: Split callback for readability
+
+		tmp_buffer_1 = self.buffer_1
+		tmp_buffer_2 = self.buffer_2
+
+		#TODO: Do not read from old data!!! Do a time check
+		if tmp_buffer_1[0] is not 0 and tmp_buffer_2[0] is not 0:
+			if tmp_buffer_1[0].header.stamp.secs < tmp_buffer_2[0].header.stamp.secs:
+				msg = tmp_buffer_1[0]
+			else:
+				msg = tmp_buffer_2[0]
+		else:
+			if tmp_buffer_1[0] is not 0:
+				msg = tmp_buffer_1[0]
+			elif tmp_buffer_2[0] is not 0:
+				msg = tmp_buffer_2[0]
+			else:
+				return
 
 		# If we have a database, check tags against it
 		if self.id_db:
 			self.errorCheck(msg)
 
-		#    If id_db exists   if we have a message
+		#    If id_db doesnt exists   if we have a message
 		if (not self.id_db) and msg.transforms:
+			rospy.logdebug("Creating Database")
 			self.startDatabase(msg.transforms[0].fiducial_id)
 
 		for i in msg.transforms:
@@ -123,7 +149,19 @@ class Slam:
 								msg.transform.translation.y,
 								msg.transform.translation.z])
 
-		print(vicon_position)
+		tag_to_cam = self.ls.lookupTransform('/vicon/tag_1/tag_1', '/vicon/cam_1/cam_1', rospy.Time())
+		tag_to_cam = np.array(tag_to_cam)
+
+		translation, rotation = self.arrayify(self.position)
+		position = np.array([translation, rotation])
+		difference = tag_to_cam - position
+		difference[1] = np.array(tf.transformations.euler_from_quaternion(difference[1]))
+		difference[1][0] = np.rad2deg(difference[1][0])
+		difference[1][1] = np.rad2deg(difference[1][1])
+		difference[1][2] = np.rad2deg(difference[1][2])
+
+		if self.tracking == True:
+			rospy.logwarn("DIFFERENCE: " + str(difference))
 
 	def errorCheck(self, msg):
 		""" Uses the camera's current position as well as any detected tags
@@ -175,7 +213,7 @@ class Slam:
 
 		rospy.loginfo("Saving tag configuration..")
 		#TEMP: Temporary file location, link dynamically
-		with open('/home/nuc/catkin_ws/src/navigation_stack/config/id_db.yml', 'w') as yaml_file:
+		with open('/home/adam/catkin_ws/src/navigation_stack/config/id_db.yml', 'w') as yaml_file:
 			yaml.dump(self.id_db, yaml_file)
 
 	def startDatabase(self, id):
@@ -186,16 +224,8 @@ class Slam:
 
 		self.id_db[id] = init
 
-		tags = []
-		for tag in msg.transforms:
-			if tag.fiducial_id in self.id_db:
-				tags.append(tag)
-
 	def tagCheck(self, tag, translational_error=.1, rotational_error=.261799):
 		""" Checks whether the tag is where we expect it to be """
-
-		#DEBUG:
-		print self.addTransforms(tag.transform,self.inverseTransform(tag.transform))
 
 		tag_from_db = self.id_db[tag.fiducial_id]
 		tag_from_camera = self.addTransforms(self.position, tag.transform)
@@ -235,6 +265,21 @@ class Slam:
 		transform = Transform(translation, rotation)
 
 		return transform
+
+	def updateBuffer1(self, msg):
+		""" Update buffer for camera 1 """
+
+		if msg.transforms:
+			self.buffer_1 = np.insert(self.buffer_1, 0, msg)
+			self.buffer_1 = np.delete(self.buffer_1, len(self.buffer_1)-1)
+
+
+	def updateBuffer2(self, msg):
+		""" Update buffer for camera 2 """
+
+		if msg.transforms:
+			self.buffer_2 = np.insert(self.buffer_2, 0, msg)
+			self.buffer_2 = np.delete(self.buffer_2, len(self.buffer_2)-1)
 
 	def updateDatabase(self, tag, t, r, samples = 15):
 		""" Grab a number of samples then average and add to database """
