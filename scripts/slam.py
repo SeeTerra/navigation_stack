@@ -20,7 +20,7 @@ class Slam:
 
 		rospy.init_node("slam", anonymous=False, log_level=rospy.DEBUG)
 		#####################TEMP: VICON ERROR ANALYSIS#########################
-		self.tag_sub = rospy.Subscriber("/vicon/tag_1/tag_1", TransformStamped, self.cb_test)
+		#self.tag_sub = rospy.Subscriber("/vicon/tag_1/tag_1", TransformStamped, self.cb_test)
 		#self.cam_sub = rospy.Subscriber("/vicon/cam_1/cam_1", TransformStamped, self.cb_test)
 		########################################################################
 		self.sub = rospy.Subscriber("camera_1/fiducial_transforms", FiducialTransformArray, self.updateBuffer1)
