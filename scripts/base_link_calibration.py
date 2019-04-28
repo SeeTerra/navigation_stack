@@ -14,59 +14,37 @@ from fiducial_msgs.msg import *
 from navigation_stack.srv import *
 from tf import transformations as t
 
-class CamSlam:
+class base_link_calibration:
 
-	def __init__(self, cam_number, setup_mode, base_transform):
+	def __init__(self):
 
 		##ROS
-		topic = "camera_%s/fiducial_transforms" % cam_number
+		rospy.init_node("base_link_calibration", anonymous=False)
+		self.br = tf.TransformBroadcaster()
+		self.ls = tf.TransformListener()
 
-		rospy.init_node("cam_slam_%s" % cam_number, anonymous=False, log_level=rospy.DEBUG)
-		self.sub = rospy.Subscriber("camera_%s/fiducial_transforms" % cam_number, FiducialTransformArray, self.updateBuffer, queue_size=1)
-		self.pub = rospy.Publisher("camera_%s/transform_array" % cam_number, FiducialTransformArray, queue_size=1)
-		self.rate = rospy.Rate(20) # in hz
+		self.camera_1 = Transform()
+		self.camera_2 = Transform()
 
-		##Localization var
-		self.tag_array_tmp = None
-		self.tag_array_old = None
-		self.tag_array_time = None
-		self.base_transform = base_transform
+		self.camera_1.translation.x = -0.05715
+		self.camera_2.translation.x = 0.05715
 
-		##Loop
+
+		self.camera_1_rotation = t.quaternion_from_euler(-np.pi/2,0,np.pi/4)
+		self.camera_2_rotation = t.quaternion_from_euler(-np.pi/2,0,-np.pi/4)
+
+		q = t.quaternion_from_euler(-np.pi/2,0,-np.pi/4)
+		Quaternion(q[0],q[1],q[2],q[3])
+
 		while not rospy.is_shutdown():
 			self.main()
-			self.rate.sleep()
 
 	def main(self):
-		""" Main Loop """
+		t1, r1 = arrayify(self.camera_1)
+		t2, r2 = arrayify(self.camera_2)
 
-		#Grab recent tags detected
-		fiducial_array = self.tag_array_tmp
-		if self.tag_array_old == None:
-			self.tag_array_old = fiducial_array
-			return
-
-		if (fiducial_array is None) or (fiducial_array == self.tag_array_old):
-			return
-		else:
-			for tag in fiducial_array:
-				tag.transform = addTransforms(self.base_transform, tag.transform)
-
-		self.tag_array_old = fiducial_array
-
-		msg = FiducialTransformArray()
-		msg.transforms = fiducial_array
-
-		self.pub.publish(msg)
-
-
-	def updateBuffer(self, msg):
-		"""Update the camera's location in space based on the tags detected"""
-
-		#TODO: Mutex Lock
-		if msg.transforms:
-			self.tag_array_tmp = msg.transforms
-			self.tag_array_time = msg.header.stamp
+		self.br.sendTransform(t1,self.camera_1_rotation,rospy.Time.now(), "/camera_1", "/world")
+		self.br.sendTransform(t2,self.camera_2_rotation,rospy.Time.now(), "/camera_2", "/world")
 
 #####################TEMP#######################################################
 def addTransforms(frame1, frame2):
@@ -125,17 +103,5 @@ def transformify(t, r):
 ################################################################################
 
 if __name__ == "__main__":
-	if int(sys.argv[1]) == 1:
-		base_link_test = Transform()
-		base_link_test.translation.x = -0.05715
-		q = t.quaternion_from_euler(-np.pi/2,0,np.pi/4)
-		base_link_test.rotation = Quaternion(q[0],q[1],q[2],q[3])
-
-	if int(sys.argv[1]) == 2:
-		base_link_test = Transform()
-		base_link_test.translation.x = 0.05715
-		q = t.quaternion_from_euler(-np.pi/2,0,-np.pi/4)
-		base_link_test.rotation = Quaternion(q[0],q[1],q[2],q[3])
-
-	cam_slam = CamSlam(sys.argv[1],True,base_link_test)
+	tester = base_link_calibration()
 	rospy.spin()

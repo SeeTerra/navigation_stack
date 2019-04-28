@@ -22,23 +22,27 @@ class tag_handler:
 		rospy.init_node("tag_database", anonymous=True, log_level=rospy.DEBUG)
 		self.service_log = rospy.Service('tag_log', TagLog, self.tag_log)
 		self.service_lookup = rospy.Service('tag_lookup', TagLookup, self.tag_lookup)
+		self.service_save = rospy.Service('tag_save', TagSave, self.database_save)
+		self.service_load = rospy.Service('tag_load', TagLoad, self.database_load)
 
 		##Tag
 		self.tag_tree = pyavltree.AVLTree()
 
-	def database_load(self):
+	def database_load(self, msg):
 		"""Load database from file"""
 		rospy.logdebug("Loading tag configuration")
 		#TEMP: Temporary file location, link dynamically
 		with open('id_db.yml', 'r') as yaml_file:
 			self.tag_tree = yaml.load(yaml_file)
+		return TagLoadResponse()
 
-	def database_save(self):
+	def database_save(self, msg):
 		"""Saves database to file"""
 		rospy.loginfo("Saving tag configuration..")
 		#TEMP: Temporary file location, link dynamically
 		with open('id_db.yml', 'w') as yaml_file:
 			yaml.dump(self.tag_tree, yaml_file)
+		return TagSaveResponse()
 
 	def tag_log(self, msg):
 		"""Store tag info in database"""
@@ -51,11 +55,9 @@ class tag_handler:
 			transform = self.tag_tree.find(msg.id).data
 			return TagLookupResponse(msg.id, transform)
 		except:
-			return TagLookupResponse(-1, Transform())
+			return TagLookupResponse(-1, Transform
+
 
 if __name__ == "__main__":
 	test = tag_handler()
-	setup_mode = True
-	if setup_mode == True:
-		atexit.register(test.database_save)
 	rospy.spin()

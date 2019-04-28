@@ -68,6 +68,6 @@
 
  <node name="cam_slam_2_node" pkg="navigation_stack" type="cam_slam.py" output ="screen" args="2" />
 
- <node name="master_slam" pkg="navigation_stack" type="slam.py" output ="screen" args="True" />
+ <node name="master_slam" pkg="navigation_stack" type="slam.py" output ="screen" args="False" />
 
 </launch>

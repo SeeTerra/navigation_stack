@@ -64,6 +64,8 @@ find_package(catkin REQUIRED COMPONENTS
    FILES
    TagLog.srv
    TagLookup.srv
+	 TagSave.srv
+	 TagLoad.srv
  )
 
 ## Generate actions in the 'action' folder
