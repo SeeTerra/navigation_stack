@@ -55,8 +55,7 @@ class tag_handler:
 			transform = self.tag_tree.find(msg.id).data
 			return TagLookupResponse(msg.id, transform)
 		except:
-			return TagLookupResponse(-1, Transform
-
+			return TagLookupResponse(-1, Transform())
 
 if __name__ == "__main__":
 	test = tag_handler()

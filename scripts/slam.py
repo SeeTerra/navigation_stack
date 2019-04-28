@@ -14,6 +14,7 @@ from sensor_msgs.msg import CameraInfo
 from fiducial_msgs.msg import *
 from navigation_stack.srv import *
 from tf import transformations as t
+from scipy import stats
 
 class Slam:
 
@@ -45,7 +46,7 @@ class Slam:
 		self.position = tmp
 		self.position_rolling_avg = []
 		self.position_buffer_size = 3
-		self.current_lane = 0
+		self.current_row = 0
 		self.buffer1 = None
 		self.buffer2 = None
 		self.buffer1_old = None
@@ -55,7 +56,12 @@ class Slam:
 		self.setup_mode = setup_mode
 		self.tag_known_buffer = []
 		self.tag_unknown_buffer = []
-		self.new_tag_buffer = []
+		self.new_tag_buffer_1 = []
+		self.new_tag_buffer_2 = []
+		self.new_tag_buffer_3 = []
+		self.new_tag_db = {1: None,
+							2: None,
+							3: None}
 
 		signal.signal(signal.SIGINT, self.shutdown)
 
@@ -70,6 +76,26 @@ class Slam:
 			self.main()
 			self.rate.sleep()
 
+	def determine_row(self, tags, starting_tag=101, tags_per_row=2):
+		"""Determine the current row algorithmically"""
+
+		tmp_row = []
+
+		for tag in tags:
+			id = int(tag.fiducial_id)
+			if id < starting_tag:
+				continue
+			even = (int(id)%2 == 0)
+			row = (id-starting_tag+1)/tags_per_row
+			if not even:
+				row = row + 1
+			tmp_row.append(row)
+
+		self.current_row = stats.mode(tmp_row)[0]
+
+		#DEBUG:
+		print self.current_row
+
 	def main(self):
 		""" Main Loop """
 
@@ -80,15 +106,15 @@ class Slam:
 			return
 
 		# #DEBUG: (check camera calibration + tag reception)
-		# try:
-		# 	for tag in fiducial_array:
-		#
-		# 		t,r = arrayify(tag.transform)
-		# 		print(r)
-		# 		self.br.sendTransform(t,r,rospy.Time.now(), "/tags/" + str(tag.fiducial_id), "/world")
-		# except Exception as e:
-		# 	rospy.logerr(e)
-		# 	return
+		try:
+			for tag in fiducial_array:
+
+				t,r = arrayify(tag.transform)
+				print(r)
+				self.br.sendTransform(t,r,rospy.Time.now(), "/tags/" + str(tag.fiducial_id), "/world")
+		except Exception as e:
+			rospy.logerr(e)
+			return
 
 		if self.setup_mode:
 			self.setup_loop(fiducial_array)
@@ -118,6 +144,9 @@ class Slam:
 		else:
 			tracking = False
 
+		# Determine row
+		self.determine_row(self.tag_known_buffer)
+
 		# Average at each timestep
 		localize_tmp = []
 		for tag in self.tag_known_buffer:
@@ -129,11 +158,11 @@ class Slam:
 				self.position_rolling_avg.append(localize_tmp)
 			else:
 				avg = np.average(self.position_rolling_avg, axis=0)
-				self.br.sendTransform(avg[0],avg[1],rospy.Time.now(),"robot","/world")
+				self.position = transformify(avg[0],avg[1])
+				t,r = arrayify(self.position)
+				#self.br.sendTransform(t,r,rospy.Time.now(),"robot","/world")
 				self.position_rolling_avg = self.position_rolling_avg[1:]
 				self.position_rolling_avg.append(localize_tmp)
-				self.position = transformify(avg[0],avg[1])
-			print "Position: ", self.position
 
 		# DEBUG: Broadcast position & known tags
 		try:
@@ -186,7 +215,7 @@ class Slam:
 
 		print tag_count
 
-	def setup_loop(self, fiducial_array, tracking_threshold=1, new_tag_threshold=15):
+	def setup_loop(self, fiducial_array, tracking_threshold=1, new_tag_threshold=35):
 		""" Loop for map generation """
 
 		if not self.origin_set:
@@ -219,31 +248,76 @@ class Slam:
 		for tag in self.tag_known_buffer:
 			t, r = arrayify(addTransforms(absolute_tag_transforms[tag.fiducial_id],inverseTransform(tag.transform)))
 			localize_tmp.append([t,r])
+		rospy.logerr(localize_tmp)
 		if tracking:
 			localize_tmp = np.average(localize_tmp,axis=0)
 			if len(self.position_rolling_avg) < self.position_buffer_size:
 				self.position_rolling_avg.append(localize_tmp)
 			else:
 				avg = np.average(self.position_rolling_avg, axis=0)
-				self.br.sendTransform(avg[0],avg[1],rospy.Time.now(),"robot","/world")
+				self.position = transformify(avg[0],avg[1])
+				#t,r = arrayify(self.position)
+				#self.br.sendTransform(t,r,rospy.Time.now(),"robot","/world")
 				self.position_rolling_avg = self.position_rolling_avg[1:]
 				self.position_rolling_avg.append(localize_tmp)
-				self.position = transformify(avg[0],avg[1])
-			print "Position: ", self.position
 
-		# Localize unknown tags
+
+		## Localize unknown tags
 		if tracking:
 			for tag in self.tag_unknown_buffer:
-				tag_position = addTransforms(self.position,tag.transform)
+				# tag_position = addTransforms(self.position,tag.transform)
+				# t, r = arrayify(tag_position)
+				# if not self.new_tag_buffer:
+				# 	self.new_tag_buffer.append(tag.fiducial_id)
+				# if self.new_tag_buffer[0] == tag.fiducial_id:
+				# 	self.new_tag_buffer.append([t,r])
+				# 	if len(self.new_tag_buffer) >= new_tag_threshold:
+				# 		avg = np.average(self.new_tag_buffer[1:], axis=0)
+				# 		self.tag_log_service(tag.fiducial_id, tag_position)
+				# 		self.new_tag_buffer = []
+
+				tag_position = addTransforms(self.position, tag.transform)
 				t, r = arrayify(tag_position)
-				if not self.new_tag_buffer:
-					self.new_tag_buffer.append(tag.fiducial_id)
-				if self.new_tag_buffer[0] == tag.fiducial_id:
-					self.new_tag_buffer.append([t,r])
-					if len(self.new_tag_buffer) >= new_tag_threshold:
-						avg = np.average(self.new_tag_buffer[1:], axis=0)
-						self.tag_log_service(tag.fiducial_id, tag_position)
-						self.new_tag_buffer = []
+
+				if not self.new_tag_buffer_1 or self.new_tag_db[1] == tag.fiducial_id:
+					rospy.logdebug("LOGGING %s IN new_tag_buffer_1" % tag.fiducial_id)
+					self.new_tag_buffer_1.append([t,r])
+					self.new_tag_db[1] = tag.fiducial_id
+				elif not self.new_tag_buffer_2 or self.new_tag_db[2] == tag.fiducial_id:
+					rospy.logdebug("LOGGING %s IN new_tag_buffer_2" % tag.fiducial_id)
+					self.new_tag_buffer_2.append([t,r])
+					self.new_tag_db[2] = tag.fiducial_id
+				elif not self.new_tag_buffer_3 or self.new_tag_db[3] == tag.fiducial_id:
+					rospy.logdebug("LOGGING %s IN new_tag_buffer_3" % tag.fiducial_id)
+					self.new_tag_buffer_3.append([t,r])
+					self.new_tag_db[3] = tag.fiducial_id
+				else:
+					rospy.logwarn("All temporary arrays in use.")
+
+				if len(self.new_tag_buffer_1) == new_tag_threshold:
+					rospy.logdebug("AVERAGING new_tag_buffer_1")
+					avg = np.average(self.new_tag_buffer_1, axis=0)
+					tag_position = transformify(avg[0],avg[1])
+					self.new_tag_buffer_1 = []
+					self.new_tag_db[1] = None
+					self.tag_log_service(tag.fiducial_id, tag_position)
+					rospy.logdebug("new_tag_buffer_1 DUMPED")
+				elif len(self.new_tag_buffer_2) == new_tag_threshold:
+					rospy.logdebug("AVERAGING new_tag_buffer_2")
+					avg = np.average(self.new_tag_buffer_2, axis=0)
+					tag_position = transformify(avg[0],avg[1])
+					self.new_tag_buffer_2 = []
+					self.new_tag_db[2] = None
+					self.tag_log_service(tag.fiducial_id, tag_position)
+					rospy.logdebug("new_tag_buffer_2 DUMPED")
+				elif len(self.new_tag_buffer_3) == new_tag_threshold:
+					rospy.logdebug("AVERAGING new_tag_buffer_3")
+					avg = np.average(self.new_tag_buffer_3, axis=0)
+					tag_position = transformify(avg[0],avg[1])
+					self.new_tag_buffer_3 = []
+					self.new_tag_db[3] = None
+					self.tag_log_service(tag.fiducial_id, tag_position)
+					rospy.logdebug("new_tag_buffer_3 DUMPED")
 
 		# DEBUG: Broadcast position & known tags
 		try:
@@ -344,6 +418,7 @@ def transformify(t, r):
 	""" Turns a translation and rotation to a transform object """
 
 	translation = Vector3(t[0],t[1],t[2])
+	r = r/(np.sqrt(r[0]**2+r[1]**2+r[2]**2+r[3]**2))
 	rotation= Quaternion(r[0],r[1],r[2],r[3])
 	transform = Transform(translation, rotation)
 
